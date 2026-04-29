@@ -96,8 +96,8 @@ fun PlaylistSongsScreen(
                         position = index + 1,
                         isCurrent = false,
                         isPlaying = false,
-                        onPlay = {  },
-                        onAction = { action ->  },
+                        onClick = { viewModel.onClick(song) },
+                        onAction = { action -> viewModel.onAction(song, action) },
                     )
                 }
             }
@@ -175,11 +175,11 @@ private fun SongRow(
     position: Int,
     isCurrent: Boolean,
     isPlaying: Boolean,
-    onPlay: () -> Unit,
+    onClick: () -> Unit,
     onAction: (QueueAction) -> Unit,
 ) {
     Card(
-        onClick = onPlay,
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(

@@ -10,5 +10,24 @@ class MainRouteViewModel @Inject constructor(
 ): BaseViewModel() {
 
 
+    fun onTogglePlay() {
+
+    }
+
+    fun onPrevious() {
+
+    }
+
+    fun onNext() {
+
+    }
+
+    fun onPlaybackModeClick() {
+
+    }
+
+    fun onQueueClick() {
+
+    }
 
 }

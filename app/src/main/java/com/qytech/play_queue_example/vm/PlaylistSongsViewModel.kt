@@ -2,7 +2,9 @@ package com.qytech.play_queue_example.vm
 
 import androidx.paging.map
 import com.qytech.play_queue_example.base.BaseViewModel
+import com.qytech.play_queue_example.data.QueueAction
 import com.qytech.play_queue_example.model.Playlist
+import com.qytech.play_queue_example.model.Song
 import com.qytech.play_queue_example.model.toModel
 import com.qytech.play_queue_example.repository.SourceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,6 +34,14 @@ class PlaylistSongsViewModel @Inject constructor(
                     entity.toModel()
                 }
             }
+    }
+
+    fun onClick(song: Song) {
+
+    }
+
+    fun onAction(song: Song, action: QueueAction) {
+
     }
 
     fun updateParams(playlist: Playlist) {

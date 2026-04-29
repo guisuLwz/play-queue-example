@@ -3,6 +3,8 @@ package com.qytech.play_queue_example.vm
 import androidx.lifecycle.viewModelScope
 import androidx.paging.map
 import com.qytech.play_queue_example.base.BaseViewModel
+import com.qytech.play_queue_example.data.QueueAction
+import com.qytech.play_queue_example.model.Playlist
 import com.qytech.play_queue_example.model.toModel
 import com.qytech.play_queue_example.repository.SourceRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,6 +31,10 @@ class PlaylistsViewModel @Inject constructor(
             sourceRepository.initPlaylists()
             sourceRepository.initSongs()
         }
+    }
+
+    fun onAction(playlist: Playlist, action: QueueAction) {
+
     }
 
 }

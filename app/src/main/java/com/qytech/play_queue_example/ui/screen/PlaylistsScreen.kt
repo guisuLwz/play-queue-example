@@ -58,7 +58,7 @@ fun PlaylistsScreen(
                     PlaylistRow(
                         playlist = playlist,
                         onOpen = { onOpen(playlist) },
-                        onAction = { action -> },
+                        onAction = { action -> viewModel.onAction(playlist, action) },
                     )
                 }
             }

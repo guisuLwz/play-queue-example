@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
@@ -36,23 +37,38 @@ import com.qytech.play_queue_example.global.Playlists
 import com.qytech.play_queue_example.ui.screen.PlaylistSongsScreen
 import com.qytech.play_queue_example.ui.screen.PlaylistsScreen
 import com.qytech.play_queue_example.util.toDurationText
+import com.qytech.play_queue_example.vm.MainRouteViewModel
 
 @Composable
-fun MainRoute(modifier: Modifier = Modifier) {
+fun MainRoute(
+    modifier: Modifier = Modifier,
+    viewModel: MainRouteViewModel = hiltViewModel()
+) {
     val backStack = rememberNavBackStack(Playlists)
 
     MainRouteContent(
         modifier = modifier
             .fillMaxSize(),
-        backStack = backStack
+        backStack = backStack,
+        queueState = null,
+        onTogglePlay = viewModel::onTogglePlay,
+        onPrevious = viewModel::onPrevious,
+        onNext = viewModel::onNext,
+        onPlaybackModeClick = viewModel::onPlaybackModeClick,
+        onQueueClick = viewModel::onQueueClick
     )
 }
 
 @Composable
 private fun MainRouteContent(
     modifier: Modifier = Modifier,
-    backStack: NavBackStack<NavKey>
-
+    backStack: NavBackStack<NavKey>,
+    queueState: QueueState? = null,
+    onTogglePlay: () -> Unit,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onPlaybackModeClick: () -> Unit,
+    onQueueClick: () -> Unit
 ) {
     Column(modifier) {
         NavDisplay(
@@ -79,12 +95,12 @@ private fun MainRouteContent(
         )
 
         PlayerController(
-            queueState = null,
-            onTogglePlay = {},
-            onPrevious = {},
-            onNext = {},
-            onPlaybackModeClick = {},
-            onQueueClick = {}
+            queueState = queueState,
+            onTogglePlay = onTogglePlay,
+            onPrevious = onPrevious,
+            onNext = onNext,
+            onPlaybackModeClick = onPlaybackModeClick,
+            onQueueClick = onQueueClick
         )
     }
 }
