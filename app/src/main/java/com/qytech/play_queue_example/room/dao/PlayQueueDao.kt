@@ -42,6 +42,9 @@ interface PlayQueueDao : BasePlayQueueDao<
     @Query("SELECT * FROM queue_segments ORDER BY id")
     override suspend fun getSegments(): List<QueueSegmentEntity>
 
+    @Query("SELECT * FROM queue_segments WHERE id = :segmentId")
+    suspend fun getSegment(segmentId: String): QueueSegmentEntity?
+
     @Query("SELECT * FROM queue_segment_pages WHERE segmentId = :segmentId AND page = :page LIMIT 1")
     override suspend fun getPage(segmentId: String, page: Int): QueueSegmentPageEntity?
 
@@ -81,5 +84,21 @@ interface PlayQueueDao : BasePlayQueueDao<
         upsertSongs(songs)
         // 最后标记这一页已经缓存成功。
         upsertPage(page)
+    }
+
+    @Query("DELETE FROM queue_segments WHERE id = :segmentId")
+    override suspend fun deleteSegmentById(segmentId: String)
+
+    @Query("DELETE FROM queue_songs WHERE segmentId = :segmentId")
+    override suspend fun deleteSongsBySegmentId(segmentId: String)
+
+    @Query("DELETE FROM queue_segment_pages WHERE segmentId = :segmentId")
+    override suspend fun deleteSegmentPageBySegmentId(segmentId: String)
+
+    @Transaction
+    override suspend fun removeQueueSegment(segmentId: String) {
+        deleteSongsBySegmentId(segmentId)
+        deleteSegmentPageBySegmentId(segmentId)
+        deleteSegmentById(segmentId)
     }
 }

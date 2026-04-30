@@ -1,6 +1,7 @@
 package com.qytech.play_queue_example.ui.component
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +35,7 @@ fun SegmentStateStrip(
     totalCount: Int,
     visibleWindow: IntRange,
     selectedSegmentId: String?,
+    onDeleteSegment: (String) -> Unit
 ) {
     Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
         Text(
@@ -51,7 +53,13 @@ fun SegmentStateStrip(
                 Box(modifier = Modifier.weight(1f)) {
                     Card(
                         modifier = Modifier
-                            .fillMaxWidth(),
+                            .fillMaxWidth()
+                            .combinedClickable(
+                                onClick = {},
+                                onLongClick = {
+                                    onDeleteSegment(state.segmentId)
+                                }
+                            ),
                         shape = RoundedCornerShape(8.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = if (state.segmentId == selectedSegmentId || state.isSelected) {

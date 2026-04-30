@@ -83,4 +83,12 @@ interface BasePlayQueueDao<
         page: SEG_PAGE,
         songs: List<S>
     )
+
+    suspend fun deleteSegmentById(segmentId: String)
+
+    suspend fun deleteSongsBySegmentId(segmentId: String)
+
+    suspend fun deleteSegmentPageBySegmentId(segmentId: String)
+
+    suspend fun removeQueueSegment(segmentId: String)
 }

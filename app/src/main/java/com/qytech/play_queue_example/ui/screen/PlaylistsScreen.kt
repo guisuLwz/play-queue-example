@@ -100,7 +100,7 @@ private fun PlaylistRow(
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = playlist.title,
+                    text = playlist.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
@@ -108,7 +108,7 @@ private fun PlaylistRow(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "${playlist.songCount} 首歌曲 · ${playlist.subtitle}",
+                    text = "${playlist.totalCount} 首歌曲 · ${playlist.subtitle}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

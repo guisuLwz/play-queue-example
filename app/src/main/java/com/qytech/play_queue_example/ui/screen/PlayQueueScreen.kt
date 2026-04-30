@@ -77,10 +77,11 @@ fun PlayQueueScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             SegmentStateStrip(
-                states = emptyList(),
-                totalCount = 0,
-                visibleWindow = 0..0,
+                states = state.segmentStates,
+                totalCount = state.totalCount,
+                visibleWindow = state.visibleWindow,
                 selectedSegmentId = "",
+                onDeleteSegment = viewModel::onDeleteSegment
             )
             if (state.totalCount == 0) {
                 EmptyListMessage()

@@ -6,18 +6,18 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class Playlist(
     val id: Long,
-    val title: String,
+    val name: String,
     val subtitle: String,
-    val songCount: Int,
+    val totalCount: Int,
     val colorArgb: Int,
 )
 
 fun PlaylistSourceEntity.toModel(): Playlist {
     return Playlist(
         id = id,
-        title = title,
+        name = name,
         subtitle = subtitle,
-        songCount = songCount,
+        totalCount = totalCount,
         colorArgb = colorArgb,
     )
 }

@@ -15,7 +15,7 @@ import com.qytech.play_queue_example.room.entity.queue.QueueSongEntity
 import javax.inject.Inject
 import javax.inject.Singleton
 
-private const val PLAY_QUEUE_PAGE_SIZE = 50
+const val PLAY_QUEUE_PAGE_SIZE = 50
 
 @Singleton
 class PlayQueueRepository @Inject constructor(
@@ -104,7 +104,7 @@ class PlayQueueRepository @Inject constructor(
     override fun buildSongsWindowQuery(ranges: List<SegmentWindowRange<QueueSegmentEntity>>): SupportSQLiteQuery {
         return buildWindowQuery(
             // 查询 songs 表。
-            select = "SELECT * FROM songs",
+            select = "SELECT * FROM queue_songs",
             // 排序方式：先按歌单，再按歌单内位置。
             orderBy = "ORDER BY segmentId, sortOrderInSegment",
             // 当前窗口拆出来的多个歌单范围。
@@ -117,7 +117,7 @@ class PlayQueueRepository @Inject constructor(
     override fun buildPagesWindowQuery(ranges: List<SegmentWindowRange<QueueSegmentEntity>>): SupportSQLiteQuery {
         return buildWindowQuery(
             // 查询 playlist_pages 表。
-            select = "SELECT * FROM segment_pages",
+            select = "SELECT * FROM queue_segment_pages",
             // 排序方式：先按歌单，再按页码。
             orderBy = "ORDER BY segmentId, page",
             // 当前窗口拆出来的多个歌单范围。

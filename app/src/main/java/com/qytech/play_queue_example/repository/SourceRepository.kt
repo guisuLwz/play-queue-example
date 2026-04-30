@@ -1,5 +1,6 @@
 package com.qytech.play_queue_example.repository
 
+import android.util.Log
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import com.qytech.play_queue_example.global.SourceData.albums
@@ -37,12 +38,17 @@ class SourceRepository @Inject constructor(
             return
         }
         val playlists = sourceDao.getPlaylists()
+
+        var totalCount = 0
+
         for (playlist in playlists) {
-            coroutineScope {
-                val totalCount = playlist.songCount
+            totalCount += coroutineScope {
+                val totalCount = playlist.totalCount
                 val pageSize = 500
                 val parallelism = 6
                 val totalPages = (totalCount + pageSize - 1) / pageSize
+
+                var count = 0
 
                 (1..totalPages)
                     .chunked(parallelism)
@@ -56,12 +62,15 @@ class SourceRepository @Inject constructor(
                                 if (end > totalCount) return@async
 
                                 val list = getSongs(playlist, from, end)
-
+                                count += end - from
                                 sourceDao.upsertSongs(list)
                             }
                         }.awaitAll()
+                        Log.d("lwz", "${playlist.name} loaded count: $count")
                     }
+                count
             }
+            Log.d("lwz", "totalCount: $totalCount")
         }
     }
 
@@ -98,13 +107,13 @@ class SourceRepository @Inject constructor(
             val displayIndex = index + 1
             PlaylistSourceEntity(
                 id = displayIndex.toLong(),
-                title = "${playlistMoods[index % playlistMoods.size]} $displayIndex",
+                name = "${playlistMoods[index % playlistMoods.size]} $displayIndex",
                 subtitle = if (index in 0 until MILLION_ROW_PLAYLIST_COUNT) {
                     "Large playlist seeded by metadata only"
                 } else {
                     "Paged playlist backed by database rows"
                 },
-                songCount = if (index in 0 until MILLION_ROW_PLAYLIST_COUNT) {
+                totalCount = if (index in 0 until MILLION_ROW_PLAYLIST_COUNT) {
                     MILLION_ROW_PLAYLIST_SIZE
                 } else {
                     42 + (index % 9) * 7
@@ -122,9 +131,9 @@ class SourceRepository @Inject constructor(
         return List(end - from) { index ->
             val number = from + index + 1
             SongSourceEntity(
-                id = playlist.id * 10_000 + number,
+                id = playlist.id * 10_000_000 + number,
                 playlistId = playlist.id,
-                songName = "Track ${number.toString().padStart(2, '0')} - ${playlist.title}",
+                songName = "Track ${number.toString().padStart(2, '0')} - ${playlist.name}",
                 artist = artists[(index + playlist.id.toInt()) % artists.size],
                 album = albums[(index / 3 + playlist.id.toInt()) % albums.size],
                 durationSeconds = 154 + ((index * 17 + playlist.id.toInt()) % 132),

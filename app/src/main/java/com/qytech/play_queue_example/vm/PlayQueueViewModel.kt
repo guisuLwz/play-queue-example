@@ -85,6 +85,12 @@ class PlayQueueViewModel @Inject constructor(
         }
     }
 
+    fun onDeleteSegment(segmentId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.removeSegment(segmentId)
+        }
+    }
+
     fun play(song: QueueSong) {
         viewModelScope.launch(Dispatchers.IO) {
             playbackController.playOrToggle(song.globalPosition)

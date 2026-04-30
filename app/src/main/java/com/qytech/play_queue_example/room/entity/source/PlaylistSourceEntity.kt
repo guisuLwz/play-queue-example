@@ -6,9 +6,9 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "source_playlists")
 data class PlaylistSourceEntity(
     @PrimaryKey val id: Long,
-    val title: String,
+    val name: String,
     val subtitle: String,
-    val songCount: Int,
+    val totalCount: Int,
     val colorArgb: Int,
 ) {
 }

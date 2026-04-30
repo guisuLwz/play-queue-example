@@ -1,5 +1,6 @@
 package com.qytech.play_queue.repository
 
+import android.util.Log
 import com.qytech.play_queue.data.PageKey
 import com.qytech.play_queue.data.PlayableSong
 import com.qytech.play_queue.data.PositionKey
@@ -99,6 +100,10 @@ abstract class BaseQueueMusicRepository<
 
     suspend fun upsertSegments(segments: List<SEG>) {
         dao.upsertSegments(segments)
+    }
+
+    suspend fun removeSegment(segmentId: String) {
+        dao.removeQueueSegment(segmentId)
     }
 
     // preloadWindow：根据当前内存窗口预加载它覆盖到的所有页。

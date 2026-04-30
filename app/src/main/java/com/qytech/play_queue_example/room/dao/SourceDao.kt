@@ -6,6 +6,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.qytech.play_queue_example.global.PlaylistSongs
+import com.qytech.play_queue_example.room.entity.queue.QueueSongEntity
 import com.qytech.play_queue_example.room.entity.source.PlaylistSourceEntity
 import com.qytech.play_queue_example.room.entity.source.SongSourceEntity
 
@@ -14,7 +15,7 @@ interface SourceDao {
 
     @Query(
         """
-        SELECT id, title, subtitle, songCount, colorArgb
+        SELECT id, name, subtitle, totalCount, colorArgb
         FROM source_playlists
         ORDER BY id
         """,
@@ -38,6 +39,9 @@ interface SourceDao {
 
     @Query("SELECT COUNT(*) FROM source_songs")
     suspend fun getSongCount(): Int
+
+    @Query("SELECT * FROM source_songs WHERE playlistId = :playlistId ORDER BY id LIMIT :pageSize OFFSET :offset")
+    suspend fun getSongsByPlaylistId(playlistId: String, offset: Int, pageSize: Int): List<SongSourceEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertSongs(songs: List<SongSourceEntity>)
