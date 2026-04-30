@@ -14,3 +14,6 @@ data object Playlists: AppRoute
 data class PlaylistSongs(
     val playlist: Playlist
 ): AppRoute
+
+@Serializable
+data object PlayQueue: AppRoute

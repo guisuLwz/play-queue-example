@@ -30,13 +30,14 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
-import com.qytech.play_queue_example.data.QueueState
-import com.qytech.play_queue_example.data.label
+import com.qytech.play_queue.data.label
+import com.qytech.play_queue_example.global.PlayQueue
 import com.qytech.play_queue_example.global.PlaylistSongs
 import com.qytech.play_queue_example.global.Playlists
+import com.qytech.play_queue_example.state.PlayQueueUiState
+import com.qytech.play_queue_example.ui.screen.PlayQueueScreen
 import com.qytech.play_queue_example.ui.screen.PlaylistSongsScreen
 import com.qytech.play_queue_example.ui.screen.PlaylistsScreen
-import com.qytech.play_queue_example.util.toDurationText
 import com.qytech.play_queue_example.vm.MainRouteViewModel
 
 @Composable
@@ -55,7 +56,13 @@ fun MainRoute(
         onPrevious = viewModel::onPrevious,
         onNext = viewModel::onNext,
         onPlaybackModeClick = viewModel::onPlaybackModeClick,
-        onQueueClick = viewModel::onQueueClick
+        onQueueClick = {
+            if (backStack.any { it is PlayQueue }) {
+                backStack.removeIf { it is PlayQueue }
+            } else {
+                backStack.add(PlayQueue)
+            }
+        }
     )
 }
 
@@ -63,7 +70,7 @@ fun MainRoute(
 private fun MainRouteContent(
     modifier: Modifier = Modifier,
     backStack: NavBackStack<NavKey>,
-    queueState: QueueState? = null,
+    queueState: PlayQueueUiState? = null,
     onTogglePlay: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
@@ -83,6 +90,7 @@ private fun MainRouteContent(
                 entry<Playlists> {
                     PlaylistsScreen(
                         onOpen = { playlist ->
+                            if (backStack.any { it is PlaylistSongs }) return@PlaylistsScreen
                             backStack.add(PlaylistSongs(playlist))
                         }
                     )
@@ -90,6 +98,10 @@ private fun MainRouteContent(
 
                 entry<PlaylistSongs> { route ->
                     PlaylistSongsScreen(route.playlist)
+                }
+
+                entry<PlayQueue> {
+                    PlayQueueScreen()
                 }
             }
         )
@@ -107,14 +119,14 @@ private fun MainRouteContent(
 
 @Composable
 private fun PlayerController(
-    queueState: QueueState? = null,
+    queueState: PlayQueueUiState? = null,
     onTogglePlay: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onPlaybackModeClick: () -> Unit,
     onQueueClick: () -> Unit,
 ) {
-    val currentSong = queueState?.currentSong
+    val currentSong = queueState?.currentPlayingSong
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -134,7 +146,7 @@ private fun PlayerController(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = currentSong?.title ?: "还没有正在播放的歌曲",
+                        text = currentSong?.name ?: "还没有正在播放的歌曲",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
@@ -142,7 +154,7 @@ private fun PlayerController(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = currentSong?.let { "${it.artist} · ${it.durationSeconds.toDurationText()}" }
+                        text = currentSong?.let { "${it.artist} · ${it.durationText}" }
                             ?: "从歌单或歌曲菜单添加到播放列表",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -178,7 +190,7 @@ private fun PlayerController(
                 }
                 IconButton(
                     onClick = onTogglePlay,
-                    enabled = queueState?.items?.isNotEmpty() ?: false,
+                    enabled = (queueState?.totalCount ?: 0) > 0,
                 ) {
                     if (queueState?.isPlaying == true) {
                         Text("暂停", style = MaterialTheme.typography.labelLarge)
