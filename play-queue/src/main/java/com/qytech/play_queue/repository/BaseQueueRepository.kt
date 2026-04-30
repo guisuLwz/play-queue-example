@@ -6,7 +6,7 @@ import com.qytech.play_queue.data.PositionKey
 import com.qytech.play_queue.data.RepositorySnapshot
 import com.qytech.play_queue.data.SegmentWindowRange
 import com.qytech.play_queue.domain.BaseGlobalPositionMapper
-import com.qytech.play_queue.local.BaseMusicDao
+import com.qytech.play_queue.local.BasePlayQueueDao
 import com.qytech.play_queue.local.IQueueSegmentEntity
 import com.qytech.play_queue.local.IQueueSegmentPageEntity
 import com.qytech.play_queue.local.IQueueSongEntity
@@ -24,7 +24,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-abstract class BaseMusicRepository<
+abstract class BaseQueueMusicRepository<
         QUERY,
         S : IQueueSongEntity,
         NET_S : INetworkSong,
@@ -33,7 +33,7 @@ abstract class BaseMusicRepository<
         SEG_PAGE : IQueueSegmentPageEntity,
         NET_SEG_PAGE : INetworkPage<NET_S, NET_SEG>,
         MAPPER : BaseGlobalPositionMapper<SEG>>(
-    private val dao: BaseMusicDao<QUERY, S, SEG, SEG_PAGE>,
+    private val dao: BasePlayQueueDao<QUERY, S, SEG, SEG_PAGE>,
     private val api: BaseMusicApi<NET_S, NET_SEG, NET_SEG_PAGE>,
     private val pageSize: Int = 50
 ) : PlayableQueueSource<S, SEG> {
@@ -101,13 +101,6 @@ abstract class BaseMusicRepository<
         dao.upsertSegments(segments)
     }
 
-    /**
-     * 打开播放列表的第一次加载，加载播放列表第一页内容
-     */
-    suspend fun loadInitialPages() {
-
-    }
-
     // preloadWindow：根据当前内存窗口预加载它覆盖到的所有页。
     suspend fun preloadWindow(window: IntRange) {
         val mapper = createGlobalPositionMapper(dao.getSegments())
@@ -121,18 +114,24 @@ abstract class BaseMusicRepository<
     }
 
     /**
-     * retry：用户点击错误行时，强制重试某个歌单某一页。
+     * 用户点击错误行时，强制重试某个歌单某一页。
      */
     suspend fun retry(playlistId: String, page: Int) {
         // forceRetry=true 表示即使这页有错误记录，也允许重新请求。
         loadPage(playlistId, page, forceRetry = true)
     }
 
+    /**
+     * 获取播放队列的歌曲总数
+     */
     override suspend fun totalSize(): Int {
 //        ensurePlaylists()
         return createGlobalPositionMapper(dao.getSegments()).totalSize
     }
 
+    /**
+     * 点击播放队列的歌曲播放
+     */
     override suspend fun getPlayableSongAt(
         globalPosition: Int,
         forceRetry: Boolean
@@ -161,6 +160,9 @@ abstract class BaseMusicRepository<
         )
     }
 
+    /**
+     * globalPosition是给看见的播放队列使用的
+     */
     override suspend fun preloadPlaybackAround(
         globalPosition: Int,
         lookBehindPages: Int,
@@ -193,7 +195,7 @@ abstract class BaseMusicRepository<
             val segment = dao.getSegments().firstOrNull { it.id == segmentId } ?: return
             val pageResult = api.fetchSongs(segmentId, page, segment.pageSize)
             val songs = pageResult.songs.map { song ->
-                song.toSongEntity(segmentId)
+                song.toQueueSongEntity(segmentId)
             }
             // 先构造更新后的歌单，但 loadedCount 暂时保留旧值。
             val updatedPlaylist = segment.copyTo(
@@ -268,9 +270,9 @@ abstract class BaseMusicRepository<
         lastError: String? = this.lastError
     ): SEG
 
-    protected abstract fun NET_S.toSongEntity(segmentId: String): S
+    protected abstract fun NET_S.toQueueSongEntity(segmentId: String): S
 
-    protected abstract fun NET_SEG.toSegmentEntity(
+    protected abstract fun NET_SEG.toQueueSegmentEntity(
         loadedCount: Int,
         hasMore: Boolean,
         lastError: String?

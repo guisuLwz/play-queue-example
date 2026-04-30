@@ -68,7 +68,7 @@ fun PlayQueueScreen(
     LaunchedEffect(listState) {
         snapshotFlow { visibleRange } //这里转成flow的好处是，可以让他重新计算一次，然后检测是否重复，重复的话过滤掉
             .distinctUntilChanged()
-            .collect { (first, last) -> }
+            .collect { (first, last) -> viewModel.onVisibleRangeChanged(first, last) }
     }
 
     Box(

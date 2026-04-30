@@ -2,7 +2,7 @@ package com.qytech.play_queue.local
 
 import kotlinx.coroutines.flow.Flow
 
-interface BaseMusicDao<
+interface BasePlayQueueDao<
         QUERY,
         S: IQueueSongEntity,
         SEG: IQueueSegmentEntity,
