@@ -11,6 +11,7 @@ import com.qytech.play_queue_example.network.PlayQueueMusicApi
 import com.qytech.play_queue_example.room.dao.PlayQueueDao
 import com.qytech.play_queue_example.room.entity.queue.QueueSegmentEntity
 import com.qytech.play_queue_example.room.entity.queue.QueueSegmentPageEntity
+import com.qytech.play_queue_example.room.entity.queue.QueueSegmentRef
 import com.qytech.play_queue_example.room.entity.queue.QueueSongEntity
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -29,13 +30,17 @@ class PlayQueueRepository @Inject constructor(
         NetworkSegment,
         QueueSegmentPageEntity,
         NetworkPage,
-        GlobalPositionMapper>(
+        QueueSegmentRef,
+        QueuePositionMapper>(
     dao = dao,
     api = api,
     pageSize = PLAY_QUEUE_PAGE_SIZE
 ) {
-    override fun createGlobalPositionMapper(segments: List<QueueSegmentEntity>): GlobalPositionMapper {
-        return GlobalPositionMapper(segments = segments)
+    override fun createQueuePositionMapper(
+        segments: List<QueueSegmentEntity>,
+        queueRefs: List<QueueSegmentRef>
+    ): QueuePositionMapper {
+        return QueuePositionMapper(queueRefs, segments.associateBy { it.id })
     }
 
     override fun createSegmentPageEntity(
@@ -165,15 +170,29 @@ class PlayQueueRepository @Inject constructor(
         return SimpleSQLiteQuery("$select WHERE $where $orderBy", args.toTypedArray())
     }
 
-    override suspend fun setPlayQueueFirst(segment: QueueSegmentEntity) {
-        super.setPlayQueueFirst(segment.copy(
-            sortIndex = getSegmentFirstSortIndex()
-        ))
+    override fun createQueueRef(
+        segmentId: String,
+        startOffsetInSegment: Int,
+        length: Int
+    ): QueueSegmentRef {
+        return QueueSegmentRef(
+            segmentId = segmentId,
+            startOffsetInSegment = startOffsetInSegment,
+            length = length
+        )
     }
 
-    override suspend fun addSegmentToTail(segment: QueueSegmentEntity) {
-        super.addSegmentToTail(segment.copy(
-            sortIndex = getSegmentLastSortIndex()
-        ))
+    override fun QueueSegmentRef.copyTo(
+        segmentId: String,
+        startOffsetInSegment: Int,
+        length: Int,
+        sortIndex: String
+    ): QueueSegmentRef {
+        return this.copy(
+            segmentId = segmentId,
+            startOffsetInSegment = startOffsetInSegment,
+            length = length,
+            sortIndex = sortIndex
+        )
     }
 }

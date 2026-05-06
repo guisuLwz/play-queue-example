@@ -10,22 +10,22 @@ import com.qytech.play_queue.model.QueueRow
 import com.qytech.play_queue.playback.PlaybackQueueController
 import com.qytech.play_queue_example.base.BaseViewModel
 import com.qytech.play_queue_example.model.QueueSong
-import com.qytech.play_queue_example.network.PlayQueueMusicApi
 import com.qytech.play_queue_example.repository.PlayQueueRepository
-import com.qytech.play_queue_example.room.dao.PlayQueueDao
 import com.qytech.play_queue_example.room.entity.queue.QueueSegmentEntity
 import com.qytech.play_queue_example.room.entity.queue.QueueSegmentPageEntity
+import com.qytech.play_queue_example.room.entity.queue.QueueSegmentRef
 import com.qytech.play_queue_example.room.entity.queue.QueueSongEntity
 import com.qytech.play_queue_example.state.PlayQueueUiState
 import com.qytech.play_queue_example.state.QueueSegmentLoadState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -45,10 +45,10 @@ class PlayQueueViewModel @Inject constructor(
     private val visibleWindow = repository.visibleWindow
 
     private val windowSnapshot = visibleWindow.flatMapLatest { window ->
-        repository.observeWindow(window)
+        repository.observeQueueWindow(window)
     }
 
-    val uiState = combine(
+    val playQueueUiState = combine(
         windowSnapshot,
         playbackController.state,
         visibleWindow
@@ -69,7 +69,7 @@ class PlayQueueViewModel @Inject constructor(
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            repository.preloadWindow(visibleWindow.value)
+            repository.preloadQueueWindow(visibleWindow.value)
         }
     }
 
@@ -78,10 +78,10 @@ class PlayQueueViewModel @Inject constructor(
         val safeFirst = first.coerceAtLeast(0)
         val safeLast = last.coerceAtLeast(safeFirst)
         val window = (safeFirst - buffer).coerceAtLeast(0)..(safeLast + buffer)
-        visibleWindow.value = window
+        repository.updateVisibleWindow(window)
 
         viewModelScope.launch(Dispatchers.IO) {
-            repository.preloadWindow(window)
+            repository.preloadQueueWindow(window)
         }
     }
 
@@ -135,7 +135,7 @@ class PlayQueueViewModel @Inject constructor(
         // Real player integration can prepare the next media item here.
     }
 
-    private fun RepositorySnapshot<QueueSongEntity, QueueSegmentEntity, QueueSegmentPageEntity>.toUiState(
+    private fun RepositorySnapshot<QueueSongEntity, QueueSegmentEntity, QueueSegmentPageEntity, QueueSegmentRef>.toUiState(
         playingSong: QueueSong?,
         playing: Boolean,
         mode: PlaybackMode,
@@ -162,7 +162,7 @@ class PlayQueueViewModel @Inject constructor(
         )
     }
 
-    private fun RepositorySnapshot<QueueSongEntity, QueueSegmentEntity, QueueSegmentPageEntity>.rowAt(
+    private fun RepositorySnapshot<QueueSongEntity, QueueSegmentEntity, QueueSegmentPageEntity, QueueSegmentRef>.rowAt(
         globalPosition: Int,
         playingSongId: String?,
         playing: Boolean
@@ -246,6 +246,11 @@ class PlayQueueViewModel @Inject constructor(
         val minute = this / 1000 / 60
         val second = this / 1000 % 60
         return "$minute:${second.toString().padStart(2, '0')}"
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        repository.resetVisibleWindow()
     }
 
 }

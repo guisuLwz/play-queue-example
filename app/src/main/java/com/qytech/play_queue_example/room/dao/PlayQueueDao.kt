@@ -18,6 +18,7 @@ import androidx.sqlite.db.SupportSQLiteQuery
 import com.qytech.play_queue.local.BasePlayQueueDao
 import com.qytech.play_queue_example.room.entity.queue.QueueSegmentEntity
 import com.qytech.play_queue_example.room.entity.queue.QueueSegmentPageEntity
+import com.qytech.play_queue_example.room.entity.queue.QueueSegmentRef
 import com.qytech.play_queue_example.room.entity.queue.QueueSongEntity
 // Flow 表示持续观察数据库变化。表变了，Room 会自动重新发射数据。
 import kotlinx.coroutines.flow.Flow
@@ -28,7 +29,8 @@ interface PlayQueueDao : BasePlayQueueDao<
         SupportSQLiteQuery,
         QueueSongEntity,
         QueueSegmentEntity,
-        QueueSegmentPageEntity> {
+        QueueSegmentPageEntity,
+        QueueSegmentRef> {
 
     @Query("SELECT * FROM queue_segments ORDER BY id")
     override fun observeSegments(): Flow<List<QueueSegmentEntity>>
@@ -39,11 +41,14 @@ interface PlayQueueDao : BasePlayQueueDao<
     @RawQuery(observedEntities = [QueueSegmentPageEntity::class])
     override fun observePagesInWindow(query: SupportSQLiteQuery): Flow<List<QueueSegmentPageEntity>>
 
+    @Query("SELECT * FROM queue_segment_refs ORDER BY sortIndex ASC")
+    override fun observeRefs(): Flow<List<QueueSegmentRef>>
+
     @Query("SELECT * FROM queue_segments ORDER BY id")
     override suspend fun getSegments(): List<QueueSegmentEntity>
 
     @Query("SELECT * FROM queue_segments WHERE id = :segmentId")
-    suspend fun getSegment(segmentId: String): QueueSegmentEntity?
+    override suspend fun getSegment(segmentId: String): QueueSegmentEntity?
 
     @Query("SELECT sortIndex FROM queue_segments WHERE id = :segmentId")
     override suspend fun getSegmentSortIndex(segmentId: String): String?
@@ -69,6 +74,12 @@ interface PlayQueueDao : BasePlayQueueDao<
         sortOrderInSegment: Int
     ): QueueSongEntity?
 
+    @Query("SELECT * FROM queue_segment_refs ORDER BY sortIndex ASC")
+    override suspend fun getRefs(): List<QueueSegmentRef>
+
+    @Query("SELECT * FROM queue_segment_refs WHERE segmentId = :segmentId ORDER BY sortIndex ASC")
+    override suspend fun getRefsBySegmentId(segmentId: String): List<QueueSegmentRef>
+
     @Query("SELECT COUNT(*) FROM queue_songs WHERE segmentId = :segmentId")
     override suspend fun countCachedSongs(segmentId: String): Int
 
@@ -82,11 +93,13 @@ interface PlayQueueDao : BasePlayQueueDao<
     override suspend fun upsertSongs(songs: List<QueueSongEntity>)
 
     @Transaction
-    override suspend fun setPlayQueueFirst(segment: QueueSegmentEntity) {
+    override suspend fun refreshPlayQueue(segments: List<QueueSegmentEntity>, refs: List<QueueSegmentRef>) {
         clearSegments()
+        clearSegmentRefs()
         clearSegmentPages()
         clearSongs()
-        upsertSegment(segment)
+        upsertSegments(segments)
+        upsertRefs(refs)
     }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -109,6 +122,18 @@ interface PlayQueueDao : BasePlayQueueDao<
         upsertPage(page)
     }
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    override suspend fun upsertRef(ref: QueueSegmentRef)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    override suspend fun upsertRefs(ref: List<QueueSegmentRef>)
+
+    @Transaction
+    override suspend fun refreshRefs(refs: List<QueueSegmentRef>) {
+        clearSegmentRefs()
+        upsertRefs(refs)
+    }
+
     @Query("DELETE FROM queue_segments WHERE id = :segmentId")
     override suspend fun deleteSegmentById(segmentId: String)
 
@@ -118,10 +143,14 @@ interface PlayQueueDao : BasePlayQueueDao<
     @Query("DELETE FROM queue_segment_pages WHERE segmentId = :segmentId")
     override suspend fun deleteSegmentPageBySegmentId(segmentId: String)
 
+    @Query("DELETE FROM queue_segment_refs WHERE segmentId = :segmentId")
+    suspend fun deleteSegmentRefBySegmentId(segmentId: String)
+
     @Transaction
     override suspend fun removeQueueSegment(segmentId: String) {
         deleteSongsBySegmentId(segmentId)
         deleteSegmentPageBySegmentId(segmentId)
+        deleteSegmentRefBySegmentId(segmentId)
         deleteSegmentById(segmentId)
     }
 
@@ -131,6 +160,9 @@ interface PlayQueueDao : BasePlayQueueDao<
     @Query("DELETE FROM queue_segment_pages")
     override suspend fun clearSegmentPages()
 
+    @Query("DELETE FROM queue_segment_refs")
+    override suspend fun clearSegmentRefs()
+
     @Query("DELETE FROM queue_songs")
     override suspend fun clearSongs()
 
@@ -138,6 +170,9 @@ interface PlayQueueDao : BasePlayQueueDao<
     override suspend fun clearPlayQueue() {
         clearSegments()
         clearSegmentPages()
+        clearSegmentRefs()
         clearSongs()
     }
+
+
 }

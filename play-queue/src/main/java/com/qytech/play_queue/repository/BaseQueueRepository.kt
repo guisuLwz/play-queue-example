@@ -1,16 +1,17 @@
 package com.qytech.play_queue.repository
 
-import androidx.annotation.CallSuper
 import com.davidarvelo.fractionalindexing.FractionalIndexing
 import com.qytech.play_queue.data.PageKey
 import com.qytech.play_queue.data.PlayableSong
 import com.qytech.play_queue.data.PositionKey
 import com.qytech.play_queue.data.RepositorySnapshot
 import com.qytech.play_queue.data.SegmentWindowRange
-import com.qytech.play_queue.domain.BaseGlobalPositionMapper
+import com.qytech.play_queue.domain.BaseQueuePositionMapper
+import com.qytech.play_queue.domain.IGlobalPositionMapper
 import com.qytech.play_queue.local.BasePlayQueueDao
 import com.qytech.play_queue.local.IQueueSegmentEntity
 import com.qytech.play_queue.local.IQueueSegmentPageEntity
+import com.qytech.play_queue.local.IQueueSegmentRefEntity
 import com.qytech.play_queue.local.IQueueSongEntity
 import com.qytech.play_queue.playback.intf.PlayableQueueSource
 import com.qytech.play_queue.remote.BaseMusicApi
@@ -20,9 +21,11 @@ import com.qytech.play_queue.remote.INetworkSong
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -34,8 +37,9 @@ abstract class BaseQueueMusicRepository<
         NET_SEG : INetworkSegment,
         SEG_PAGE : IQueueSegmentPageEntity,
         NET_SEG_PAGE : INetworkPage<NET_S, NET_SEG>,
-        MAPPER : BaseGlobalPositionMapper<SEG>>(
-    private val dao: BasePlayQueueDao<QUERY, S, SEG, SEG_PAGE>,
+        SEG_REF: IQueueSegmentRefEntity,
+        MAPPER : BaseQueuePositionMapper<SEG, SEG_REF>>(
+    private val dao: BasePlayQueueDao<QUERY, S, SEG, SEG_PAGE, SEG_REF>,
     private val api: BaseMusicApi<NET_S, NET_SEG, NET_SEG_PAGE>,
     private val pageSize: Int = 50
 ) : PlayableQueueSource<S, SEG> {
@@ -46,104 +50,270 @@ abstract class BaseQueueMusicRepository<
         }
     }
 
-    val visibleWindow = MutableStateFlow(0..120)
+    private val _visibleWindow = MutableStateFlow(0..120)
+    val visibleWindow = _visibleWindow.asStateFlow()
 
     private val loadMutex = Mutex()
-
+    private val queueMutex = Mutex()
     private val loadingPageKeys = MutableStateFlow<Set<PageKey>>(emptySet())
+
+    fun resetVisibleWindow() {
+        _visibleWindow.update {
+            0..120
+        }
+    }
+
+    fun updateVisibleWindow(range: IntRange) {
+        _visibleWindow.update {
+            range
+        }
+    }
 
     /**
      * 播放队列窗口变化，拿到ui层所需要的内容
      */
     @OptIn(ExperimentalCoroutinesApi::class)
-    fun observeWindow(window: IntRange): Flow<RepositorySnapshot<S, SEG, SEG_PAGE>> {
+    fun observeQueueWindow(window: IntRange): Flow<RepositorySnapshot<S, SEG, SEG_PAGE, SEG_REF>> {
         return combine(
             dao.observeSegments(),
+            dao.observeRefs(),
             loadingPageKeys
-        ) { segments, loadingKeys ->
-            segments to loadingKeys
-        }.flatMapLatest { (segments, loadingKeys) ->
-            if (segments.isEmpty()) {
-                flowOf(RepositorySnapshot.empty(window))
-            } else {
-                val mapper = createGlobalPositionMapper(segments)
-                val ranges = mapper.rangesFor(window)
-                combine(
-                    dao.observeSongsInWindow(buildSongsWindowQuery(ranges)),
-                    dao.observePagesInWindow(buildPagesWindowQuery(ranges))
-                ) { songs, pages ->
-                    RepositorySnapshot<S, SEG, SEG_PAGE>(
-                        positionMapper = createGlobalPositionMapper(segments),
-                        segments = segments,
-                        totalSize = mapper.totalSize,
-                        window = window,
-                        ranges = ranges,
-                        songsByPositionKey = songs.associateBy {
-                            PositionKey(
-                                segmentId = it.segmentId,
-                                sortOrderInSegment = it.sortOrderInSegment
-                            )
-                        },
-                        pagesByKey = pages.associateBy {
-                            PageKey(
-                                segmentId = it.segmentId,
-                                page = it.page
-                            )
-                        },
-                        loadingPageKeys = loadingKeys
-                    )
-                }
-            }
+        ) { segments, queueRefs, loadingKeys ->
+            Triple(segments, queueRefs, loadingKeys)
+        }.flatMapLatest { (segments, queueRefs, loadingKeys) ->
+            val mapper = createQueuePositionMapper(segments, queueRefs)
+            observeMappedWindow(
+                segments = mapper.segments,
+                mapper = mapper,
+                window = window,
+                loadingKeys = loadingKeys
+            )
         }
     }
 
-    @CallSuper
-    open suspend fun setPlayQueueFirst(segment: SEG) {
-        dao.setPlayQueueFirst(segment)
+    private fun observeMappedWindow(
+        segments: List<SEG>,
+        mapper: MAPPER,
+        window: IntRange,
+        loadingKeys: Set<PageKey>
+    ): Flow<RepositorySnapshot<S, SEG, SEG_PAGE, SEG_REF>> {
+        if (mapper.totalSize <= 0) {
+            return flowOf(RepositorySnapshot.empty(window))
+        }
+
+        val ranges = mapper.rangesFor(window)
+
+        return combine(
+            dao.observeSongsInWindow(buildSongsWindowQuery(ranges)),
+            dao.observePagesInWindow(buildPagesWindowQuery(ranges))
+        ) { songs, pages ->
+            RepositorySnapshot(
+                positionMapper = mapper,
+                segments = segments,
+                totalSize = mapper.totalSize,
+                window = window,
+                ranges = ranges,
+                songsByPositionKey = songs.associateBy {
+                    PositionKey(
+                        segmentId = it.segmentId,
+                        sortOrderInSegment = it.sortOrderInSegment
+                    )
+                },
+                pagesByKey = pages.associateBy {
+                    PageKey(
+                        segmentId = it.segmentId,
+                        page = it.page
+                    )
+                },
+                loadingPageKeys = loadingKeys
+            )
+        }
     }
 
-    @CallSuper
-    open suspend fun addSegmentToTail(segment: SEG) {
-        dao.upsertSegment(segment)
+    suspend fun setPlayQueueFirst(segment: SEG) {
+        queueMutex.withLock {
+            if (segment.logicalLength() <= 0) return@withLock
+
+            dao.refreshPlayQueue(
+                segments = listOf(segment),
+                refs = listOf(createQueueRef(
+                    segmentId = segment.id,
+                    startOffsetInSegment = 0,
+                    length = segment.logicalLength()
+                ))
+            )
+        }
     }
 
 
+    suspend fun addSegmentToTail(segment: SEG) {
+        queueMutex.withLock {
+            if (segment.logicalLength() <= 0) return@withLock
 
-    suspend fun getSegmentFirstSortIndex(): String {
-        return FractionalIndexing.generateFractionalIndexBetween(
-            null,
-            dao.getSegmentFirstSortIndex()
-        )
+            val dbSegment = dao.getSegment(segment.id)
+            if (dbSegment == null) {
+                dao.upsertSegment(segment)
+            }
+            // 队列中已经存在了
+            if (dao.getRefsBySegmentId(segment.id).isNotEmpty()) return@withLock
+
+//            val allSegments = dao.getSegments()
+//            val allRefs = dao.getRefs()
+//            val queueWasEmpty = allRefs.isEmpty()
+//            val currentTotalSize = createQueuePositionMapper(allSegments, allRefs).totalSize
+
+            dao.upsertRef(createQueueRef(
+                segmentId = segment.id,
+                startOffsetInSegment = 0,
+                length = segment.logicalLength()
+            ))
+        }
     }
 
-    suspend fun getSegmentLastSortIndex(): String {
-        return FractionalIndexing.generateFractionalIndexBetween(
-            dao.getSegmentLastSortIndex(),
-            null
-        )
+    suspend fun insertSegmentToNext(
+        segment: SEG,
+        currentGlobalPosition: Int?
+    ) {
+        queueMutex.withLock {
+            if (segment.logicalLength() <= 0) return@withLock
+
+            val dbSegment = dao.getSegment(segment.id)
+            if (dbSegment == null) {
+                dao.upsertSegment(segment)
+            }
+            // 队列中已经存在了
+            if (dao.getRefsBySegmentId(segment.id).isNotEmpty()) return@withLock
+
+            val allSegments = dao.getSegments()
+            val allRefs = dao.getRefs()
+            val queueWasEmpty = allRefs.isEmpty()
+            val currentTotalSize = createQueuePositionMapper(allSegments, allRefs).totalSize
+            val insertPosition = if (queueWasEmpty) {
+                0
+            } else if (currentGlobalPosition == null) {
+                0
+            } else {
+                (currentGlobalPosition + 1).coerceIn(0, currentTotalSize)
+            }
+            val insertedRef = createQueueRef(
+                segmentId = segment.id,
+                startOffsetInSegment = 0,
+                length = segment.logicalLength()
+            )
+            val newAllRefs = insertQueueRefAtPosition(
+                refs = allRefs,
+                position = insertPosition,
+                insertedRef = insertedRef
+            )
+            val sortIndexes = FractionalIndexing.generateNFractionalIndicesBetween(null, null, newAllRefs.size)
+            dao.refreshRefs(
+                newAllRefs.mapIndexed { index, it ->
+                    it.copyTo(
+                        sortIndex = sortIndexes[index]
+                    )
+                }
+            )
+        }
     }
 
-    suspend fun getSegmentPreviousSortIndex(curSortIndex: String): String {
-        return FractionalIndexing.generateFractionalIndexBetween(dao.getSegmentPreviousSortIndex(curSortIndex), curSortIndex)
+    private fun insertQueueRefAtPosition(
+        refs: List<SEG_REF>,
+        position: Int,
+        insertedRef: SEG_REF
+    ): List<SEG_REF> {
+        if (refs.isEmpty()) return listOf(insertedRef)
+
+        val nextRefs = mutableListOf<SEG_REF>()
+        var cursor = 0 // cursor 表示当前遍历到的 ref 在整个队列里的起始位置
+        refs.forEachIndexed { index, ref ->
+            val endExclusive = cursor + ref.length
+            when {
+                position <= cursor -> {
+                    nextRefs += insertedRef
+                    nextRefs += refs.drop(index)
+                    return nextRefs
+                }
+
+                position < endExclusive -> {
+                    val beforeLength = position - cursor
+                    val afterLength = endExclusive - position
+                    if (beforeLength > 0) {
+                        nextRefs += createQueueRef(
+                            segmentId = ref.segmentId,
+                            startOffsetInSegment = ref.startOffsetInSegment,
+                            length = beforeLength
+                        )
+                    }
+                    nextRefs += insertedRef
+                    if (afterLength > 0) {
+                        nextRefs += createQueueRef(
+                            segmentId = ref.segmentId,
+                            startOffsetInSegment = ref.startOffsetInSegment + beforeLength,
+                            length = afterLength
+                        )
+                    }
+                    nextRefs += refs.drop(index + 1)
+                    return nextRefs
+                }
+
+                else -> {
+                    nextRefs += ref
+                    cursor = endExclusive
+                }
+            }
+        }
+        nextRefs += insertedRef
+        return nextRefs
     }
 
-    suspend fun getSegmentNextSortIndex(curSortIndex: String): String {
-        return FractionalIndexing.generateFractionalIndexBetween(curSortIndex, dao.getSegmentNextSortIndex(curSortIndex))
-    }
+//    suspend fun getSegmentFirstSortIndex(): String {
+//        return FractionalIndexing.generateFractionalIndexBetween(
+//            null,
+//            dao.getSegmentFirstSortIndex()
+//        )
+//    }
+//
+//    suspend fun getSegmentLastSortIndex(): String {
+//        return FractionalIndexing.generateFractionalIndexBetween(
+//            dao.getSegmentLastSortIndex(),
+//            null
+//        )
+//    }
+//
+//    suspend fun getSegmentPreviousSortIndex(curSortIndex: String): String {
+//        return FractionalIndexing.generateFractionalIndexBetween(dao.getSegmentPreviousSortIndex(curSortIndex), curSortIndex)
+//    }
+//
+//    suspend fun getSegmentNextSortIndex(curSortIndex: String): String {
+//        return FractionalIndexing.generateFractionalIndexBetween(curSortIndex, dao.getSegmentNextSortIndex(curSortIndex))
+//    }
 
     suspend fun removeSegment(segmentId: String) {
         dao.removeQueueSegment(segmentId)
     }
 
     // preloadWindow：根据当前内存窗口预加载它覆盖到的所有页。
-    suspend fun preloadWindow(window: IntRange) {
-        val mapper = createGlobalPositionMapper(dao.getSegments())
-        mapper.rangesFor(window).forEach { range ->
-            // 这个 range 可能跨多个页，所以遍历 firstPage..lastPage。
-            for (page in range.firstPage..range.lastPage) {
-                // 加载对应页；已缓存/正在加载/失败未重试都会在 loadPage 内部拦住。
-                loadPage(range.segment.id, page, forceRetry = false)
+    suspend fun preloadQueueWindow(window: IntRange) {
+        preloadMappedWindow(
+            mapper = createQueuePositionMapper(dao.getSegments(), dao.getRefs()),
+            window = window
+        )
+    }
+
+    private suspend fun preloadMappedWindow(
+        mapper: IGlobalPositionMapper<SEG>,
+        window: IntRange
+    ) {
+        val pageKeys = mapper.rangesFor(window)
+            .flatMap { range ->
+                (range.firstPage..range.lastPage).map { page ->
+                    PageKey(segmentId = range.segment.id, page = page)
+                }
             }
+            .distinct()
+
+        pageKeys.forEach { key ->
+            loadPage(key.segmentId, key.page, forceRetry = false)
         }
     }
 
@@ -159,8 +329,7 @@ abstract class BaseQueueMusicRepository<
      * 获取播放队列的歌曲总数
      */
     override suspend fun totalSize(): Int {
-//        ensurePlaylists()
-        return createGlobalPositionMapper(dao.getSegments()).totalSize
+        return createQueuePositionMapper(dao.getSegments(), dao.getRefs()).totalSize
     }
 
     /**
@@ -171,7 +340,7 @@ abstract class BaseQueueMusicRepository<
         forceRetry: Boolean
     ): PlayableSong<S, SEG>? {
 //        ensurePlaylists()
-        val initialMapper = createGlobalPositionMapper(dao.getSegments())
+        val initialMapper = createQueuePositionMapper(dao.getSegments(), dao.getRefs())
         val initialLocation = initialMapper.locate(globalPosition) ?: return null
 
         loadPage(
@@ -180,7 +349,7 @@ abstract class BaseQueueMusicRepository<
             forceRetry = forceRetry
         )
 
-        val refreshedMapper = createGlobalPositionMapper(dao.getSegments())
+        val refreshedMapper = createQueuePositionMapper(dao.getSegments(), dao.getRefs())
         val location = refreshedMapper.locate(globalPosition) ?: return null
         val song = dao.getSongAtPosition(
             segmentId = location.segment.id,
@@ -203,7 +372,7 @@ abstract class BaseQueueMusicRepository<
         lookAheadPages: Int
     ) {
 //        ensurePlaylists()
-        val mapper = createGlobalPositionMapper(dao.getSegments())
+        val mapper = createQueuePositionMapper(dao.getSegments(), dao.getRefs())
         val location = mapper.locate(globalPosition) ?: return
         val pageSize = location.segment.pageSize.coerceAtLeast(1)
         val start = (globalPosition - pageSize * lookBehindPages.coerceAtLeast(0))
@@ -211,7 +380,7 @@ abstract class BaseQueueMusicRepository<
         val end = (globalPosition + pageSize * lookAheadPages.coerceAtLeast(0))
             .coerceAtMost((mapper.totalSize - 1).coerceAtLeast(0))
 
-        preloadWindow(start..end)
+        preloadQueueWindow(start..end)
     }
 
     // loadPage：加载某个歌单某一页。
@@ -286,7 +455,24 @@ abstract class BaseQueueMusicRepository<
         }
     }
 
-    protected abstract fun createGlobalPositionMapper(segments: List<SEG>): MAPPER
+    protected abstract fun createQueueRef(
+        segmentId: String,
+        startOffsetInSegment: Int,
+        length: Int
+    ): SEG_REF
+
+    protected abstract fun SEG_REF.copyTo(
+        segmentId: String = this.segmentId,
+        startOffsetInSegment: Int = this.startOffsetInSegment,
+        length: Int = this.length,
+        sortIndex: String = this.sortIndex
+    ): SEG_REF
+
+    private fun SEG.logicalLength(): Int {
+        return totalCount ?: (loadedCount + pageSize)
+    }
+
+    protected abstract fun createQueuePositionMapper(segments: List<SEG>, queueRefs: List<SEG_REF>): MAPPER
 
     protected abstract fun createSegmentPageEntity(
         segmentId: String,

@@ -59,3 +59,11 @@ interface IQueueSegmentPageEntity {
      */
     val error: String?
 }
+
+interface IQueueSegmentRefEntity {
+    val id: Long
+    val segmentId: String
+    val startOffsetInSegment: Int
+    val length: Int
+    val sortIndex: String
+}

@@ -51,7 +51,7 @@ fun PlayQueueScreen(
     viewModel: PlayQueueViewModel = hiltViewModel()
 ) {
 
-    val state by viewModel.uiState.collectAsState()
+    val state by viewModel.playQueueUiState.collectAsState()
     // 监听lazyColumn当前的状态用的
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()

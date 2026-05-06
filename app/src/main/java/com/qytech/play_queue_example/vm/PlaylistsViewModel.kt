@@ -57,7 +57,20 @@ class PlaylistsViewModel @Inject constructor(
                 }
 
                 QueueAction.InsertNext -> {
-
+                    playQueueRepository.insertSegmentToNext(
+                        segment = QueueSegmentEntity(
+                            id = playlist.id.toString(),
+                            name = playlist.name,
+                            coverUrl = null,
+                            loadedCount = 0,
+                            totalCount = playlist.totalCount,
+                            pageSize = PLAY_QUEUE_PAGE_SIZE,
+                            hasMore = true,
+                            lastError = null,
+                            type = "playlist"
+                        ),
+                        currentGlobalPosition = 2
+                    )
                 }
 
                 QueueAction.AppendToEnd -> {
@@ -76,7 +89,7 @@ class PlaylistsViewModel @Inject constructor(
                     )
                 }
             }
-            playQueueRepository.preloadWindow(window = playQueueRepository.visibleWindow.value)
+            playQueueRepository.preloadQueueWindow(window = playQueueRepository.visibleWindow.value)
         }
     }
 

@@ -6,7 +6,8 @@ interface BasePlayQueueDao<
         QUERY,
         S: IQueueSongEntity,
         SEG: IQueueSegmentEntity,
-        SEG_PAGE: IQueueSegmentPageEntity> {
+        SEG_PAGE: IQueueSegmentPageEntity,
+        SEG_REF: IQueueSegmentRefEntity> {
 
     /**
      * 观察歌单表。
@@ -27,11 +28,15 @@ interface BasePlayQueueDao<
      */
     fun observePagesInWindow(query: QUERY): Flow<List<SEG_PAGE>>
 
+    fun observeRefs(): Flow<List<SEG_REF>>
+
     /**
      * 一次性读取所有歌单。Repository 做业务判断时用，不是给 UI 长期观察用。
      * 例如：'@'Query("SELECT * FROM segments ORDER BY id")
      */
     suspend fun getSegments(): List<SEG>
+
+    suspend fun getSegment(segmentId: String): SEG?
 
     suspend fun getSegmentLastSortIndex(): String?
 
@@ -50,6 +55,10 @@ interface BasePlayQueueDao<
     suspend fun getPage(segmentId: String, page: Int): SEG_PAGE?
 
     suspend fun getSongAtPosition(segmentId: String, sortOrderInSegment: Int): S?
+
+    suspend fun getRefs(): List<SEG_REF>
+
+    suspend fun getRefsBySegmentId(segmentId: String): List<SEG_REF>
 
     /**
      * 统计某个歌单当前已经缓存了多少首歌，用来更新 PlaylistEntity.loadedCount。
@@ -75,11 +84,7 @@ interface BasePlayQueueDao<
      */
     suspend fun upsertSongs(songs: List<S>)
 
-    /**
-     * 首次设置播放队列
-     * 设置片段，先删除所有片段、所有歌曲，再添加片段
-     */
-    suspend fun setPlayQueueFirst(segment: SEG)
+    suspend fun refreshPlayQueue(segments: List<SEG>, refs: List<SEG_REF>)
 
     /**
      * 插入或更新某一页的状态。
@@ -100,6 +105,12 @@ interface BasePlayQueueDao<
         songs: List<S>
     )
 
+    suspend fun upsertRef(ref: SEG_REF)
+
+    suspend fun upsertRefs(ref: List<SEG_REF>)
+
+    suspend fun refreshRefs(refs: List<SEG_REF>)
+
     suspend fun deleteSegmentById(segmentId: String)
 
     suspend fun deleteSongsBySegmentId(segmentId: String)
@@ -111,6 +122,8 @@ interface BasePlayQueueDao<
     suspend fun clearSegments()
 
     suspend fun clearSegmentPages()
+
+    suspend fun clearSegmentRefs()
 
     suspend fun clearSongs()
 

@@ -8,6 +8,7 @@ import com.qytech.play_queue_example.room.dao.PlayQueueDao
 import com.qytech.play_queue_example.room.dao.SourceDao
 import com.qytech.play_queue_example.room.entity.queue.QueueSegmentEntity
 import com.qytech.play_queue_example.room.entity.queue.QueueSegmentPageEntity
+import com.qytech.play_queue_example.room.entity.queue.QueueSegmentRef
 import com.qytech.play_queue_example.room.entity.queue.QueueSongEntity
 import com.qytech.play_queue_example.room.entity.source.PlaylistSourceEntity
 import com.qytech.play_queue_example.room.entity.source.SongSourceEntity
@@ -16,10 +17,10 @@ import com.qytech.play_queue_example.room.entity.source.SongSourceEntity
     entities = [
         PlaylistSourceEntity::class,
         SongSourceEntity::class,
-
         QueueSongEntity::class,
         QueueSegmentEntity::class,
-        QueueSegmentPageEntity::class
+        QueueSegmentPageEntity::class,
+        QueueSegmentRef::class
     ],
     version = 1,
     exportSchema = false
