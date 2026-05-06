@@ -14,9 +14,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.random.Random
 
-class PlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSegmentEntity>(
+abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSegmentEntity>(
     private val queueSource: PlayableQueueSource<S, SEG>,
-    private val maxShuffleHistory: Int = DefaultMaxShuffleHistory,
+    private val maxShuffleHistory: Int = DEFAULT_MAX_SHUFFLE_HISTORY,
     private val onPreparedPrevious: suspend (PlayableSong<S, SEG>) -> Unit = {},
     private val onPreparedNext: suspend (PlayableSong<S, SEG>) -> Unit = {},
     private val onPreparePlay: suspend (PlayableSong<S, SEG>) -> Unit
@@ -103,6 +103,14 @@ class PlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSegmentEntity>(
         operationMutex.withLock {
             setPlaybackModeLocked(mode)
         }
+    }
+
+    suspend fun hasPrevious(): Boolean {
+        return previousPositionLocked() != null
+    }
+
+    suspend fun hasNext(): Boolean {
+        return nextPositionLocked() != null
     }
 
     private suspend fun setPlaybackModeLocked(mode: PlaybackMode) {
@@ -322,6 +330,6 @@ class PlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSegmentEntity>(
     }
 
     companion object {
-        const val DefaultMaxShuffleHistory: Int = 10_000
+        const val DEFAULT_MAX_SHUFFLE_HISTORY: Int = 10_000
     }
 }

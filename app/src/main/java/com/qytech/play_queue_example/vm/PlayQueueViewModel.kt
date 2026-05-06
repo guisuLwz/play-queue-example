@@ -7,40 +7,35 @@ import com.qytech.play_queue.data.PlaybackMode
 import com.qytech.play_queue.data.PositionKey
 import com.qytech.play_queue.data.RepositorySnapshot
 import com.qytech.play_queue.model.QueueRow
-import com.qytech.play_queue.playback.PlaybackQueueController
 import com.qytech.play_queue_example.base.BaseViewModel
 import com.qytech.play_queue_example.model.QueueSong
+import com.qytech.play_queue_example.player.PlaybackQueueController
 import com.qytech.play_queue_example.repository.PlayQueueRepository
+import com.qytech.play_queue_example.repository.QueuePositionMapper
 import com.qytech.play_queue_example.room.entity.queue.QueueSegmentEntity
 import com.qytech.play_queue_example.room.entity.queue.QueueSegmentPageEntity
 import com.qytech.play_queue_example.room.entity.queue.QueueSegmentRef
 import com.qytech.play_queue_example.room.entity.queue.QueueSongEntity
+import com.qytech.play_queue_example.room.entity.queue.toLoadState
+import com.qytech.play_queue_example.room.entity.queue.toUiModel
 import com.qytech.play_queue_example.state.PlayQueueUiState
 import com.qytech.play_queue_example.state.QueueSegmentLoadState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class PlayQueueViewModel @Inject constructor(
-    private val repository: PlayQueueRepository
+    private val repository: PlayQueueRepository,
+    private val playbackController: PlaybackQueueController
 ) : BaseViewModel() {
-
-    private val playbackController = PlaybackQueueController(
-        queueSource = repository,
-        onPreparedPrevious = { playableSong -> preparePreviousMediaItem(playableSong) },
-        onPreparedNext = { playableSong -> prepareNextMediaItem(playableSong) },
-        onPreparePlay = { }
-    )
 
     private val visibleWindow = repository.visibleWindow
 
@@ -87,7 +82,7 @@ class PlayQueueViewModel @Inject constructor(
 
     fun onDeleteSegment(segmentId: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            repository.removeSegment(segmentId)
+            repository.removeQueueSegment(segmentId)
         }
     }
 
@@ -127,14 +122,6 @@ class PlayQueueViewModel @Inject constructor(
         }
     }
 
-    private fun preparePreviousMediaItem(song: PlayableSong<QueueSongEntity, QueueSegmentEntity>) {
-
-    }
-
-    private fun prepareNextMediaItem(song: PlayableSong<QueueSongEntity, QueueSegmentEntity>) {
-        // Real player integration can prepare the next media item here.
-    }
-
     private fun RepositorySnapshot<QueueSongEntity, QueueSegmentEntity, QueueSegmentPageEntity, QueueSegmentRef>.toUiState(
         playingSong: QueueSong?,
         playing: Boolean,
@@ -158,7 +145,7 @@ class PlayQueueViewModel @Inject constructor(
             currentPlayingSong = playingSong,
             isPlaying = playing,
             playbackMode = mode,
-            visibleWindow = window
+            visibleWindow = window,
         )
     }
 
@@ -216,37 +203,6 @@ class PlayQueueViewModel @Inject constructor(
         isPlaying = isPlaying
     )
 
-    private fun QueueSongEntity.toUiModel(
-        globalPosition: Int,
-        playlist: QueueSegmentEntity,
-        isPlaying: Boolean
-    ) = QueueSong(
-        globalPosition = globalPosition,
-        songId = id,
-        segmentId = segmentId,
-        segmentName = playlist.name,
-        name = name,
-        artist = artist,
-        durationText = durationMs.toDurationText(),
-        isPlaying = isPlaying
-    )
-
-    private fun QueueSegmentEntity.toLoadState(loadingKeys: Set<PageKey>) = QueueSegmentLoadState(
-        segmentId = id,
-        name = name,
-        totalCount = totalCount,
-        cachedCount = loadedCount,
-        pageSize = pageSize,
-        isLoading = loadingKeys.any { it.segmentId == id },
-        error = lastError,
-        hasMore = hasMore
-    )
-
-    private fun Long.toDurationText(): String {
-        val minute = this / 1000 / 60
-        val second = this / 1000 % 60
-        return "$minute:${second.toString().padStart(2, '0')}"
-    }
 
     override fun onCleared() {
         super.onCleared()

@@ -19,6 +19,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -31,10 +33,14 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.qytech.play_queue.data.label
+import com.qytech.play_queue.state.PlaybackQueueState
 import com.qytech.play_queue_example.global.PlayQueue
 import com.qytech.play_queue_example.global.PlaylistSongs
 import com.qytech.play_queue_example.global.Playlists
+import com.qytech.play_queue_example.room.entity.queue.QueueSegmentEntity
+import com.qytech.play_queue_example.room.entity.queue.QueueSongEntity
 import com.qytech.play_queue_example.state.PlayQueueUiState
+import com.qytech.play_queue_example.state.PlaybackUiState
 import com.qytech.play_queue_example.ui.screen.PlayQueueScreen
 import com.qytech.play_queue_example.ui.screen.PlaylistSongsScreen
 import com.qytech.play_queue_example.ui.screen.PlaylistsScreen
@@ -46,12 +52,13 @@ fun MainRoute(
     viewModel: MainRouteViewModel = hiltViewModel()
 ) {
     val backStack = rememberNavBackStack(Playlists)
+    val playbackState by viewModel.playbackState.collectAsState()
 
     MainRouteContent(
         modifier = modifier
             .fillMaxSize(),
         backStack = backStack,
-        queueState = null,
+        playbackState = playbackState,
         onTogglePlay = viewModel::onTogglePlay,
         onPrevious = viewModel::onPrevious,
         onNext = viewModel::onNext,
@@ -70,7 +77,7 @@ fun MainRoute(
 private fun MainRouteContent(
     modifier: Modifier = Modifier,
     backStack: NavBackStack<NavKey>,
-    queueState: PlayQueueUiState? = null,
+    playbackState: PlaybackUiState? = null,
     onTogglePlay: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
@@ -107,7 +114,7 @@ private fun MainRouteContent(
         )
 
         PlayerController(
-            queueState = queueState,
+            playbackState = playbackState,
             onTogglePlay = onTogglePlay,
             onPrevious = onPrevious,
             onNext = onNext,
@@ -119,14 +126,14 @@ private fun MainRouteContent(
 
 @Composable
 private fun PlayerController(
-    queueState: PlayQueueUiState? = null,
+    playbackState: PlaybackUiState? = null,
     onTogglePlay: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onPlaybackModeClick: () -> Unit,
     onQueueClick: () -> Unit,
 ) {
-    val currentSong = queueState?.currentPlayingSong
+    val currentSong = playbackState?.currentPlayingSong
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -178,21 +185,21 @@ private fun PlayerController(
                     onClick = onPlaybackModeClick,
                     contentPadding = PaddingValues(horizontal = 8.dp),
                 ) {
-                    Text(queueState?.playbackMode?.label ?: "列表循环")
+                    Text(playbackState?.playbackMode?.label ?: "列表循环")
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 TextButton(
                     onClick = onPrevious,
-                    enabled = queueState?.hasPrevious ?: false,
+                    enabled = playbackState?.hasPrevious ?: false,
                     contentPadding = PaddingValues(horizontal = 8.dp),
                 ) {
                     Text("上一首")
                 }
                 IconButton(
                     onClick = onTogglePlay,
-                    enabled = (queueState?.totalCount ?: 0) > 0,
+                    enabled = playbackState?.currentPlayingSong != null,
                 ) {
-                    if (queueState?.isPlaying == true) {
+                    if (playbackState?.isPlaying == true) {
                         Text("暂停", style = MaterialTheme.typography.labelLarge)
                     } else {
                         Icon(
@@ -203,7 +210,7 @@ private fun PlayerController(
                 }
                 TextButton(
                     onClick = onNext,
-                    enabled = queueState?.hasNext ?: false,
+                    enabled = playbackState?.hasNext ?: false,
                     contentPadding = PaddingValues(horizontal = 8.dp),
                 ) {
                     Text("下一首")

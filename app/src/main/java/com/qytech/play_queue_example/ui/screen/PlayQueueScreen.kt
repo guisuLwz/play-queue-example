@@ -100,8 +100,8 @@ fun PlayQueueScreen(
                         when (val row = state.rowsByPosition[index]) {
                             is QueueRow.SongRow<*> -> QueueSongRow(
                                 song = row.song as QueueSong,
-                                onPlay = {
-
+                                onPlay = { song ->
+                                    viewModel.play(song = song)
                                 }
                             )
 

@@ -13,6 +13,6 @@ data class PlayQueueUiState(
     override val isPlaying: Boolean = false,
     override val playbackMode: PlaybackMode = PlaybackMode.Sequence,
     override val visibleWindow: IntRange = 0..0,
-    val hasPrevious: Boolean = false,
-    val hasNext: Boolean = false
+    override val hasPrevious: Boolean = true,
+    override val hasNext: Boolean = true
 ): IPlayQueueUiState<QueueSong, QueueSegmentLoadState>

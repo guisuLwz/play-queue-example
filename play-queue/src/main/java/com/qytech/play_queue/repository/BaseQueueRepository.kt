@@ -288,7 +288,7 @@ abstract class BaseQueueMusicRepository<
 //        return FractionalIndexing.generateFractionalIndexBetween(curSortIndex, dao.getSegmentNextSortIndex(curSortIndex))
 //    }
 
-    suspend fun removeSegment(segmentId: String) {
+    suspend fun removeQueueSegment(segmentId: String) {
         dao.removeQueueSegment(segmentId)
     }
 

@@ -6,6 +6,7 @@ import com.qytech.play_queue_example.base.BaseViewModel
 import com.qytech.play_queue_example.data.QueueAction
 import com.qytech.play_queue_example.model.Playlist
 import com.qytech.play_queue_example.model.toModel
+import com.qytech.play_queue_example.player.PlaybackQueueController
 import com.qytech.play_queue_example.repository.PLAY_QUEUE_PAGE_SIZE
 import com.qytech.play_queue_example.repository.PlayQueueRepository
 import com.qytech.play_queue_example.repository.SourceRepository
@@ -19,7 +20,8 @@ import javax.inject.Inject
 @HiltViewModel
 class PlaylistsViewModel @Inject constructor(
     private val sourceRepository: SourceRepository,
-    private val playQueueRepository: PlayQueueRepository
+    private val playQueueRepository: PlayQueueRepository,
+    private val playbackQueueController: PlaybackQueueController
 ) : BaseViewModel() {
 
     val playlistsPagingData = sourceRepository.playlistPager()
@@ -69,7 +71,7 @@ class PlaylistsViewModel @Inject constructor(
                             lastError = null,
                             type = "playlist"
                         ),
-                        currentGlobalPosition = 2
+                        currentGlobalPosition = playbackQueueController.state.value.currentSong?.globalPosition
                     )
                 }
 

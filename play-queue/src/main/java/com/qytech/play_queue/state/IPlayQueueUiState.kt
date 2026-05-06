@@ -16,4 +16,6 @@ interface IPlayQueueUiState<S: IQueueSongUiModel, SEG_LOAD_STATE: IQueueSegmentL
     val isPlaying: Boolean
     val playbackMode: PlaybackMode
     val visibleWindow: IntRange
+    val hasPrevious: Boolean
+    val hasNext: Boolean
 }
