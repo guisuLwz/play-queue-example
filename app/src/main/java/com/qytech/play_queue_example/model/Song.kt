@@ -11,6 +11,7 @@ data class Song(
     val artist: String,
     val album: String,
     val durationSeconds: Int,
+    val indexInSegment: Int,
 )
 
 fun SongSourceEntity.toModel(): Song {
@@ -21,5 +22,6 @@ fun SongSourceEntity.toModel(): Song {
         artist = artist,
         album = album,
         durationSeconds = durationSeconds,
+        indexInSegment = indexInSegment,
     )
 }

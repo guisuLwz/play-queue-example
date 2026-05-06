@@ -156,7 +156,26 @@ abstract class BaseQueueMusicRepository<
         segment: SEG,
         offsetInSegment: Int
     ): QueueMutationResult {
-        return QueueMutationResult.Noop
+        return queueMutex.withLock {
+            val totalSize = segment.logicalLength()
+            if (totalSize <= 0) return@withLock QueueMutationResult.Noop
+
+            val autoPlayPosition = offsetInSegment.coerceIn(0, totalSize - 1)
+
+            dao.refreshPlayQueue(
+                segments = listOf(segment),
+                refs = listOf(createQueueRef(
+                    segmentId = segment.id,
+                    startOffsetInSegment = 0,
+                    length = totalSize
+                ))
+            )
+
+            QueueMutationResult(
+                firstInsertedPosition = 0,
+                autoPlayPosition = autoPlayPosition
+            )
+        }
     }
 
 

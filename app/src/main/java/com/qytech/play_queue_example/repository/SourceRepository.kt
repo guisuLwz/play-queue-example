@@ -129,14 +129,16 @@ class SourceRepository @Inject constructor(
         end: Int
     ): List<SongSourceEntity> {
         return List(end - from) { index ->
-            val number = from + index + 1
+            val indexInSegment = from + index
+            val number = indexInSegment + 1
             SongSourceEntity(
                 id = playlist.id * 10_000_000 + number,
                 playlistId = playlist.id,
                 songName = "Track ${number.toString().padStart(2, '0')} - ${playlist.name}",
-                artist = artists[(index + playlist.id.toInt()) % artists.size],
-                album = albums[(index / 3 + playlist.id.toInt()) % albums.size],
-                durationSeconds = 154 + ((index * 17 + playlist.id.toInt()) % 132),
+                artist = artists[(indexInSegment + playlist.id.toInt()) % artists.size],
+                album = albums[(indexInSegment / 3 + playlist.id.toInt()) % albums.size],
+                durationSeconds = 154 + ((indexInSegment * 17 + playlist.id.toInt()) % 132),
+                indexInSegment = indexInSegment
             )
         }
     }

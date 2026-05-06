@@ -87,10 +87,10 @@ fun PlaylistSongsScreen(
                 } else {
                     SongRow(
                         song = song,
-                        position = index + 1,
+                        position = song.indexInSegment + 1,
                         isCurrent = false,
                         isPlaying = false,
-                        onClick = { viewModel.onClick(song) },
+                        onClick = { viewModel.onClick(playlist, song.indexInSegment) },
                         onAction = { action -> viewModel.onAction(song, action) },
                     )
                 }

@@ -11,6 +11,7 @@ data class SongSourceEntity(
     val songName: String = "",
     val artist: String = "",
     val album: String = "",
-    val durationSeconds: Int
+    val durationSeconds: Int,
+    val indexInSegment: Int
 ) {
 }

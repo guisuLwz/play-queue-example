@@ -33,15 +33,16 @@ class PlayQueueMusicApi @Inject constructor(
             emptyList<NetworkSong>()
         } else {
             sourceDao.getSongsByPlaylistId(segmentId, from, pageSize)
-                .mapIndexed { index, entity ->
+                .map { entity ->
+                    val number = entity.indexInSegment + 1
                     NetworkSong(
                         id = entity.id.toString(),
-                        name = "${segment.name} Track ${from + index + 1}",
+                        name = "${segment.name} Track $number",
                         coverUrl = null,
                         artist = entity.artist,
-                        durationMs = (160 + (index * 11 % 140)) * 1000L,
-                        playUrl = "https://example.com/${segment}/${from + index + 1}.mp3",
-                        sortOrderInSegment = from + index
+                        durationMs = entity.durationSeconds * 1000L,
+                        playUrl = "https://example.com/${segment}/${number}.mp3",
+                        sortOrderInSegment = entity.indexInSegment
                     )
                 }
         }
