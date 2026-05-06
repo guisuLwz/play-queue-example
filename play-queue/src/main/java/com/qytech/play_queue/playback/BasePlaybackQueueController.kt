@@ -6,6 +6,7 @@ import com.qytech.play_queue.local.IQueueSegmentEntity
 import com.qytech.play_queue.local.IQueueSongEntity
 import com.qytech.play_queue.state.PlaybackQueueState
 import com.qytech.play_queue.data.PreparedPlaybackItem
+import com.qytech.play_queue.data.QueueMutationResult
 import com.qytech.play_queue.playback.intf.PlayableQueueSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +43,15 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
             } else {
                 playAtLocked(globalPosition, shouldPlay = true)
             }
+        }
+    }
+
+    suspend fun playAt(
+        globalPosition: Int,
+        shouldPlay: Boolean = true
+    ): PlayableSong<S, SEG>? {
+        return operationMutex.withLock {
+            playAtLocked(globalPosition, shouldPlay)
         }
     }
 
@@ -111,6 +121,30 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
 
     suspend fun hasNext(): Boolean {
         return nextPositionLocked() != null
+    }
+
+    suspend fun refreshPrepared() {
+        operationMutex.withLock {
+            val currentPosition = _state.value.currentSong?.globalPosition
+            if (currentPosition == null) {
+                clearPreparedPreviousLocked()
+                clearPreparedShuffleNextLocked()
+                return@withLock
+            }
+
+            queueSource.preloadPlaybackAround(currentPosition)
+            preparePreviousIfNeededLocked(currentPosition)
+            prepareShuffleNextIfNeededLocked(currentPosition)
+        }
+    }
+
+    suspend fun applyQueueMutationResult(result: QueueMutationResult) {
+        val autoPlayPosition = result.autoPlayPosition
+        if (autoPlayPosition != null) {
+            playAt(autoPlayPosition, shouldPlay = true)
+        } else if (result.inserted) {
+            refreshPrepared()
+        }
     }
 
     private suspend fun setPlaybackModeLocked(mode: PlaybackMode) {

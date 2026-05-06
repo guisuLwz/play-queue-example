@@ -4,6 +4,7 @@ import com.davidarvelo.fractionalindexing.FractionalIndexing
 import com.qytech.play_queue.data.PageKey
 import com.qytech.play_queue.data.PlayableSong
 import com.qytech.play_queue.data.PositionKey
+import com.qytech.play_queue.data.QueueMutationResult
 import com.qytech.play_queue.data.RepositorySnapshot
 import com.qytech.play_queue.data.SegmentWindowRange
 import com.qytech.play_queue.domain.BaseQueuePositionMapper
@@ -130,9 +131,9 @@ abstract class BaseQueueMusicRepository<
         }
     }
 
-    suspend fun setPlayQueueFirst(segment: SEG) {
-        queueMutex.withLock {
-            if (segment.logicalLength() <= 0) return@withLock
+    suspend fun setPlayQueueFirst(segment: SEG): QueueMutationResult {
+        return queueMutex.withLock {
+            if (segment.logicalLength() <= 0) return@withLock QueueMutationResult.Noop
 
             dao.refreshPlayQueue(
                 segments = listOf(segment),
@@ -142,47 +143,57 @@ abstract class BaseQueueMusicRepository<
                     length = segment.logicalLength()
                 ))
             )
+
+            return@withLock QueueMutationResult(
+                firstInsertedPosition = 0,
+                autoPlayPosition = 0
+            )
         }
     }
 
 
-    suspend fun addSegmentToTail(segment: SEG) {
-        queueMutex.withLock {
-            if (segment.logicalLength() <= 0) return@withLock
+    suspend fun addSegmentToTail(segment: SEG): QueueMutationResult {
+        return queueMutex.withLock {
+            if (segment.logicalLength() <= 0) return@withLock QueueMutationResult.Noop
 
             val dbSegment = dao.getSegment(segment.id)
             if (dbSegment == null) {
                 dao.upsertSegment(segment)
             }
             // 队列中已经存在了
-            if (dao.getRefsBySegmentId(segment.id).isNotEmpty()) return@withLock
+            if (dao.getRefsBySegmentId(segment.id).isNotEmpty()) return@withLock QueueMutationResult.Noop
 
-//            val allSegments = dao.getSegments()
-//            val allRefs = dao.getRefs()
-//            val queueWasEmpty = allRefs.isEmpty()
-//            val currentTotalSize = createQueuePositionMapper(allSegments, allRefs).totalSize
+            val allSegments = dao.getSegments()
+            val allRefs = dao.getRefs()
+            val queueWasEmpty = allRefs.isEmpty()
+            val firstInsertedPosition = createQueuePositionMapper(allSegments, allRefs).totalSize
 
             dao.upsertRef(createQueueRef(
                 segmentId = segment.id,
                 startOffsetInSegment = 0,
                 length = segment.logicalLength()
             ))
+
+            QueueMutationResult(
+                firstInsertedPosition = firstInsertedPosition,
+                autoPlayPosition = firstInsertedPosition.takeIf { queueWasEmpty }
+            )
         }
     }
 
     suspend fun insertSegmentToNext(
         segment: SEG,
         currentGlobalPosition: Int?
-    ) {
-        queueMutex.withLock {
-            if (segment.logicalLength() <= 0) return@withLock
+    ): QueueMutationResult {
+        return queueMutex.withLock {
+            if (segment.logicalLength() <= 0) return@withLock QueueMutationResult.Noop
 
             val dbSegment = dao.getSegment(segment.id)
             if (dbSegment == null) {
                 dao.upsertSegment(segment)
             }
             // 队列中已经存在了
-            if (dao.getRefsBySegmentId(segment.id).isNotEmpty()) return@withLock
+            if (dao.getRefsBySegmentId(segment.id).isNotEmpty()) return@withLock QueueMutationResult.Noop
 
             val allSegments = dao.getSegments()
             val allRefs = dao.getRefs()
@@ -212,6 +223,11 @@ abstract class BaseQueueMusicRepository<
                         sortIndex = sortIndexes[index]
                     )
                 }
+            )
+
+            QueueMutationResult(
+                firstInsertedPosition = insertPosition,
+                autoPlayPosition = insertPosition.takeIf { queueWasEmpty }
             )
         }
     }

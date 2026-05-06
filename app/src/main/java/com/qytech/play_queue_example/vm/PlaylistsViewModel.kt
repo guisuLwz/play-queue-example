@@ -41,7 +41,7 @@ class PlaylistsViewModel @Inject constructor(
 
     fun onAction(playlist: Playlist, action: QueueAction) {
         viewModelScope.launch(Dispatchers.IO) {
-            when (action) {
+            val result = when (action) {
                 QueueAction.PlayNow -> {
                     playQueueRepository.setPlayQueueFirst(
                         segment = QueueSegmentEntity(
@@ -91,6 +91,7 @@ class PlaylistsViewModel @Inject constructor(
                     )
                 }
             }
+            playbackQueueController.applyQueueMutationResult(result)
             playQueueRepository.preloadQueueWindow(window = playQueueRepository.visibleWindow.value)
         }
     }
