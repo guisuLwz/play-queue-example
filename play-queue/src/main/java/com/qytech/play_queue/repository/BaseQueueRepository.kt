@@ -1,6 +1,7 @@
 package com.qytech.play_queue.repository
 
-import android.util.Log
+import androidx.annotation.CallSuper
+import com.davidarvelo.fractionalindexing.FractionalIndexing
 import com.qytech.play_queue.data.PageKey
 import com.qytech.play_queue.data.PlayableSong
 import com.qytech.play_queue.data.PositionKey
@@ -44,6 +45,8 @@ abstract class BaseQueueMusicRepository<
             "pageSize must be in range 1..50, but was $pageSize"
         }
     }
+
+    val visibleWindow = MutableStateFlow(0..120)
 
     private val loadMutex = Mutex()
 
@@ -94,12 +97,38 @@ abstract class BaseQueueMusicRepository<
         }
     }
 
-    suspend fun upsertSegment(segment: SEG) {
+    @CallSuper
+    open suspend fun setPlayQueueFirst(segment: SEG) {
+        dao.setPlayQueueFirst(segment)
+    }
+
+    @CallSuper
+    open suspend fun addSegmentToTail(segment: SEG) {
         dao.upsertSegment(segment)
     }
 
-    suspend fun upsertSegments(segments: List<SEG>) {
-        dao.upsertSegments(segments)
+
+
+    suspend fun getSegmentFirstSortIndex(): String {
+        return FractionalIndexing.generateFractionalIndexBetween(
+            null,
+            dao.getSegmentFirstSortIndex()
+        )
+    }
+
+    suspend fun getSegmentLastSortIndex(): String {
+        return FractionalIndexing.generateFractionalIndexBetween(
+            dao.getSegmentLastSortIndex(),
+            null
+        )
+    }
+
+    suspend fun getSegmentPreviousSortIndex(curSortIndex: String): String {
+        return FractionalIndexing.generateFractionalIndexBetween(dao.getSegmentPreviousSortIndex(curSortIndex), curSortIndex)
+    }
+
+    suspend fun getSegmentNextSortIndex(curSortIndex: String): String {
+        return FractionalIndexing.generateFractionalIndexBetween(curSortIndex, dao.getSegmentNextSortIndex(curSortIndex))
     }
 
     suspend fun removeSegment(segmentId: String) {
@@ -280,7 +309,8 @@ abstract class BaseQueueMusicRepository<
     protected abstract fun NET_SEG.toQueueSegmentEntity(
         loadedCount: Int,
         hasMore: Boolean,
-        lastError: String?
+        lastError: String?,
+        sortIndex: String
     ): SEG
 
     /**

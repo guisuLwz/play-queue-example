@@ -14,6 +14,7 @@ interface IQueueSegmentEntity {
     val pageSize: Int
     val hasMore: Boolean
     val lastError: String?
+    val sortIndex: String
 }
 
 /**

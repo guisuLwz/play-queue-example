@@ -33,6 +33,16 @@ interface BasePlayQueueDao<
      */
     suspend fun getSegments(): List<SEG>
 
+    suspend fun getSegmentLastSortIndex(): String?
+
+    suspend fun getSegmentFirstSortIndex(): String?
+
+    suspend fun getSegmentSortIndex(segmentId: String): String?
+
+    suspend fun getSegmentPreviousSortIndex(curSortIndex: String): String?
+
+    suspend fun getSegmentNextSortIndex(curSortIndex: String): String?
+
     /**
      * 一次性读取某个歌单某一页的状态，用于判断是否需要请求网络。
      * 例如：'@'Query("SELECT * FROM segment_pages WHERE segmentId = :segmentId AND page = :page LIMIT 1")
@@ -66,6 +76,12 @@ interface BasePlayQueueDao<
     suspend fun upsertSongs(songs: List<S>)
 
     /**
+     * 首次设置播放队列
+     * 设置片段，先删除所有片段、所有歌曲，再添加片段
+     */
+    suspend fun setPlayQueueFirst(segment: SEG)
+
+    /**
      * 插入或更新某一页的状态。
      * 例如：'@'Insert(onConflict = OnConflictStrategy.REPLACE)
      */
@@ -91,4 +107,12 @@ interface BasePlayQueueDao<
     suspend fun deleteSegmentPageBySegmentId(segmentId: String)
 
     suspend fun removeQueueSegment(segmentId: String)
+
+    suspend fun clearSegments()
+
+    suspend fun clearSegmentPages()
+
+    suspend fun clearSongs()
+
+    suspend fun clearPlayQueue()
 }

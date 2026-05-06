@@ -15,5 +15,6 @@ data class QueueSegmentEntity(
     override val loadedCount: Int,
     override val pageSize: Int,
     override val hasMore: Boolean,
-    override val lastError: String?
+    override val lastError: String?,
+    override val sortIndex: String = ""
 ) : IQueueSegmentEntity

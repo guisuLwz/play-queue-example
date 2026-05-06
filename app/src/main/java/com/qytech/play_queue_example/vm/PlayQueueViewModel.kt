@@ -42,7 +42,7 @@ class PlayQueueViewModel @Inject constructor(
         onPreparePlay = { }
     )
 
-    private val visibleWindow = MutableStateFlow(0..120)
+    private val visibleWindow = repository.visibleWindow
 
     private val windowSnapshot = visibleWindow.flatMapLatest { window ->
         repository.observeWindow(window)

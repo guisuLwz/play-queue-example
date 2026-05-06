@@ -36,12 +36,12 @@ class PlayQueueMusicApi @Inject constructor(
                 .mapIndexed { index, entity ->
                     NetworkSong(
                         id = entity.id.toString(),
-                        name = "${segment.name} Track ${index + 1}",
+                        name = "${segment.name} Track ${from + index + 1}",
                         coverUrl = null,
                         artist = entity.artist,
                         durationMs = (160 + (index * 11 % 140)) * 1000L,
-                        playUrl = "https://example.com/${segment}/${index + 1}.mp3",
-                        sortOrderInSegment = index
+                        playUrl = "https://example.com/${segment}/${from + index + 1}.mp3",
+                        sortOrderInSegment = from + index
                     )
                 }
         }

@@ -45,6 +45,21 @@ interface PlayQueueDao : BasePlayQueueDao<
     @Query("SELECT * FROM queue_segments WHERE id = :segmentId")
     suspend fun getSegment(segmentId: String): QueueSegmentEntity?
 
+    @Query("SELECT sortIndex FROM queue_segments WHERE id = :segmentId")
+    override suspend fun getSegmentSortIndex(segmentId: String): String?
+
+    @Query("SELECT sortIndex FROM queue_segments WHERE sortIndex < :curSortIndex ORDER BY sortIndex DESC LIMIT 1")
+    override suspend fun getSegmentPreviousSortIndex(curSortIndex: String): String?
+
+    @Query("SELECT sortIndex FROM queue_segments WHERE sortIndex > :curSortIndex ORDER BY sortIndex ASC LIMIT 1")
+    override suspend fun getSegmentNextSortIndex(curSortIndex: String): String?
+
+    @Query("SELECT sortIndex FROM queue_segments ORDER BY sortIndex ASC LIMIT 1")
+    override suspend fun getSegmentFirstSortIndex(): String?
+
+    @Query("SELECT sortIndex FROM queue_segments ORDER BY sortIndex DESC LIMIT 1")
+    override suspend fun getSegmentLastSortIndex(): String?
+
     @Query("SELECT * FROM queue_segment_pages WHERE segmentId = :segmentId AND page = :page LIMIT 1")
     override suspend fun getPage(segmentId: String, page: Int): QueueSegmentPageEntity?
 
@@ -65,6 +80,14 @@ interface PlayQueueDao : BasePlayQueueDao<
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     override suspend fun upsertSongs(songs: List<QueueSongEntity>)
+
+    @Transaction
+    override suspend fun setPlayQueueFirst(segment: QueueSegmentEntity) {
+        clearSegments()
+        clearSegmentPages()
+        clearSongs()
+        upsertSegment(segment)
+    }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     override suspend fun upsertPage(page: QueueSegmentPageEntity)
@@ -100,5 +123,21 @@ interface PlayQueueDao : BasePlayQueueDao<
         deleteSongsBySegmentId(segmentId)
         deleteSegmentPageBySegmentId(segmentId)
         deleteSegmentById(segmentId)
+    }
+
+    @Query("DELETE FROM queue_segments")
+    override suspend fun clearSegments()
+
+    @Query("DELETE FROM queue_segment_pages")
+    override suspend fun clearSegmentPages()
+
+    @Query("DELETE FROM queue_songs")
+    override suspend fun clearSongs()
+
+    @Transaction
+    override suspend fun clearPlayQueue() {
+        clearSegments()
+        clearSegmentPages()
+        clearSongs()
     }
 }

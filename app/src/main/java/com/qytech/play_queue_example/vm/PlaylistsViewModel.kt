@@ -20,7 +20,7 @@ import javax.inject.Inject
 class PlaylistsViewModel @Inject constructor(
     private val sourceRepository: SourceRepository,
     private val playQueueRepository: PlayQueueRepository
-): BaseViewModel() {
+) : BaseViewModel() {
 
     val playlistsPagingData = sourceRepository.playlistPager()
         .flow
@@ -41,7 +41,7 @@ class PlaylistsViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             when (action) {
                 QueueAction.PlayNow -> {
-                    playQueueRepository.upsertSegment(
+                    playQueueRepository.setPlayQueueFirst(
                         segment = QueueSegmentEntity(
                             id = playlist.id.toString(),
                             name = playlist.name,
@@ -61,9 +61,22 @@ class PlaylistsViewModel @Inject constructor(
                 }
 
                 QueueAction.AppendToEnd -> {
-
+                    playQueueRepository.addSegmentToTail(
+                        segment = QueueSegmentEntity(
+                            id = playlist.id.toString(),
+                            name = playlist.name,
+                            coverUrl = null,
+                            loadedCount = 0,
+                            totalCount = playlist.totalCount,
+                            pageSize = PLAY_QUEUE_PAGE_SIZE,
+                            hasMore = true,
+                            lastError = null,
+                            type = "playlist"
+                        )
+                    )
                 }
             }
+            playQueueRepository.preloadWindow(window = playQueueRepository.visibleWindow.value)
         }
     }
 

@@ -86,7 +86,8 @@ class PlayQueueRepository @Inject constructor(
     override fun NetworkSegment.toQueueSegmentEntity(
         loadedCount: Int,
         hasMore: Boolean,
-        lastError: String?
+        lastError: String?,
+        sortIndex: String
     ): QueueSegmentEntity {
         return QueueSegmentEntity(
             id = id,
@@ -98,6 +99,7 @@ class PlayQueueRepository @Inject constructor(
             pageSize = PLAY_QUEUE_PAGE_SIZE,
             hasMore = hasMore,
             lastError = lastError,
+            sortIndex = sortIndex
         )
     }
 
@@ -163,5 +165,15 @@ class PlayQueueRepository @Inject constructor(
         return SimpleSQLiteQuery("$select WHERE $where $orderBy", args.toTypedArray())
     }
 
+    override suspend fun setPlayQueueFirst(segment: QueueSegmentEntity) {
+        super.setPlayQueueFirst(segment.copy(
+            sortIndex = getSegmentFirstSortIndex()
+        ))
+    }
 
+    override suspend fun addSegmentToTail(segment: QueueSegmentEntity) {
+        super.addSegmentToTail(segment.copy(
+            sortIndex = getSegmentLastSortIndex()
+        ))
+    }
 }
