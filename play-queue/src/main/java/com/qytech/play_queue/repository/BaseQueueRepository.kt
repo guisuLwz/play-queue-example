@@ -15,6 +15,7 @@ import com.qytech.play_queue.local.IQueueSegmentPageEntity
 import com.qytech.play_queue.local.IQueueSegmentRefEntity
 import com.qytech.play_queue.local.IQueueSongEntity
 import com.qytech.play_queue.playback.intf.PlayableQueueSource
+import com.qytech.play_queue.playback.intf.SegmentQueueActionTarget
 import com.qytech.play_queue.remote.BaseMusicApi
 import com.qytech.play_queue.remote.INetworkPage
 import com.qytech.play_queue.remote.INetworkSegment
@@ -43,7 +44,7 @@ abstract class BaseQueueMusicRepository<
     private val dao: BasePlayQueueDao<QUERY, S, SEG, SEG_PAGE, SEG_REF>,
     private val api: BaseMusicApi<NET_S, NET_SEG, NET_SEG_PAGE>,
     private val pageSize: Int = 50
-) : PlayableQueueSource<S, SEG> {
+) : PlayableQueueSource<S, SEG>, SegmentQueueActionTarget<SEG> {
 
     init {
         require(pageSize in 1..50) {
@@ -131,7 +132,7 @@ abstract class BaseQueueMusicRepository<
         }
     }
 
-    suspend fun setPlayQueueFirst(segment: SEG): QueueMutationResult {
+    override suspend fun playSegmentNow(segment: SEG): QueueMutationResult {
         return queueMutex.withLock {
             if (segment.logicalLength() <= 0) return@withLock QueueMutationResult.Noop
 
@@ -151,8 +152,15 @@ abstract class BaseQueueMusicRepository<
         }
     }
 
+    override suspend fun playSegmentFromOffset(
+        segment: SEG,
+        offsetInSegment: Int
+    ): QueueMutationResult {
+        return QueueMutationResult.Noop
+    }
 
-    suspend fun addSegmentToTail(segment: SEG): QueueMutationResult {
+
+    override suspend fun addSegmentToTail(segment: SEG): QueueMutationResult {
         return queueMutex.withLock {
             if (segment.logicalLength() <= 0) return@withLock QueueMutationResult.Noop
 
@@ -181,7 +189,7 @@ abstract class BaseQueueMusicRepository<
         }
     }
 
-    suspend fun insertSegmentToNext(
+    override suspend fun insertSegmentToNext(
         segment: SEG,
         currentGlobalPosition: Int?
     ): QueueMutationResult {

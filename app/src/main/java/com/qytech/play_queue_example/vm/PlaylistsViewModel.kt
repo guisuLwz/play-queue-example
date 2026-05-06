@@ -43,7 +43,7 @@ class PlaylistsViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             val result = when (action) {
                 QueueAction.PlayNow -> {
-                    playQueueRepository.setPlayQueueFirst(
+                    playQueueRepository.playSegmentNow(
                         segment = QueueSegmentEntity(
                             id = playlist.id.toString(),
                             name = playlist.name,
