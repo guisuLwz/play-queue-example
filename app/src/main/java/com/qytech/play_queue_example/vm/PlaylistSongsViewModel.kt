@@ -12,6 +12,7 @@ import com.qytech.play_queue_example.repository.PLAY_QUEUE_PAGE_SIZE
 import com.qytech.play_queue_example.repository.PlayQueueRepository
 import com.qytech.play_queue_example.repository.SourceRepository
 import com.qytech.play_queue_example.room.entity.queue.QueueSegmentEntity
+import com.qytech.play_queue_example.room.entity.queue.QueueSongEntity
 import com.qytech.play_queue_example.room.entity.queue.toUiModel
 import com.qytech.play_queue_example.state.PlaybackUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -69,12 +70,11 @@ class PlaylistSongsViewModel @Inject constructor(
             initialValue = PlaybackUiState()
         )
 
-    fun onClick(playlist: Playlist, offsetInSegment: Int) {
+    fun onClick(playlist: Playlist, song: Song) {
         viewModelScope.launch(Dispatchers.IO) {
             val current = playbackQueueController.state.value.currentSong
             val isCurrentSong = current != null &&
-                    current.song.segmentId == playlist.id.toString() &&
-                    current.song.sortOrderInSegment == offsetInSegment
+                    current.song.id == song.id.toString()
             if (isCurrentSong) {
                 playbackQueueController.playOrToggle(current.globalPosition)
                 return@launch
@@ -92,7 +92,7 @@ class PlaylistSongsViewModel @Inject constructor(
                     lastError = null,
                     type = "playlist"
                 ),
-                offsetInSegment = offsetInSegment
+                offsetInSegment = song.indexInSegment
             )
             playbackQueueController.applyQueueMutationResult(result)
             playQueueRepository.preloadQueueWindow(window = playQueueRepository.visibleWindow.value)
@@ -100,7 +100,28 @@ class PlaylistSongsViewModel @Inject constructor(
     }
 
     fun onAction(song: Song, action: QueueAction) {
-
+        viewModelScope.launch(Dispatchers.IO) {
+            val queueSong = QueueSongEntity(
+                id = song.id.toString(),
+                segmentId = song.id.toString(),
+                name = song.title,
+                coverUrl = null,
+                artist = song.artist,
+                durationMs = song.durationSeconds * 1000L,
+                playUrl = null,
+                sortOrderInSegment = 0
+            )
+            val result = when (action) {
+                QueueAction.PlayNow -> playQueueRepository.playSongNow(queueSong)
+                QueueAction.InsertNext -> playQueueRepository.insertSongToNext(
+                    song = queueSong,
+                    currentGlobalPosition = playbackQueueController.state.value.currentSong?.globalPosition
+                )
+                QueueAction.AppendToEnd -> playQueueRepository.addSongToTail(queueSong)
+            }
+            playbackQueueController.applyQueueMutationResult(result)
+            playQueueRepository.preloadQueueWindow(window = playQueueRepository.visibleWindow.value)
+        }
     }
 
     fun updateParams(playlist: Playlist) {

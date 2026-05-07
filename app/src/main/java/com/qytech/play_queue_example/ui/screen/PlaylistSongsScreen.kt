@@ -93,14 +93,16 @@ fun PlaylistSongsScreen(
                     LoadingRow()
                 } else {
                     val currentSong = playbackState.currentPlayingSong
+                    val currentSegmentId = currentSong?.segmentId
                     val isCurrent = currentSong?.songId == song.id.toString() &&
-                            currentSong.segmentId == playlist.id.toString()
+                            (currentSegmentId == playlist.id.toString() ||
+                                    currentSegmentId == song.id.toString())
                     SongRow(
                         song = song,
                         position = song.indexInSegment + 1,
                         isCurrent = isCurrent,
                         isPlaying = isCurrent && playbackState.isPlaying,
-                        onClick = { viewModel.onClick(playlist, song.indexInSegment) },
+                        onClick = { viewModel.onClick(playlist, song) },
                         onAction = { action -> viewModel.onAction(song, action) },
                     )
                 }

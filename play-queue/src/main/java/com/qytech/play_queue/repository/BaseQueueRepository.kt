@@ -160,7 +160,39 @@ abstract class BaseQueueMusicRepository<
      * 现在播放歌曲
      */
     override suspend fun playSongNow(song: S): QueueMutationResult {
-        return QueueMutationResult.Noop
+        return queueMutex.withLock {
+            val segment = song.toSingleSongSegment()
+            // 将歌曲中的片段id改成自身的歌曲id，这样改是为了播放队列查找的时候使用
+            val singleQueueSong = song.copyTo(
+                segmentId = song.id,
+                sortOrderInSegment = 0
+            )
+
+            dao.refreshPlayQueue(
+                segments = listOf(segment),
+                refs = listOf(createQueueRef(
+                    segmentId = segment.id,
+                    startOffsetInSegment = 0,
+                    length = 1
+                ))
+            )
+
+            dao.cachePage(
+                segment = segment,
+                songs = listOf(singleQueueSong),
+                page = createSegmentPageEntity(
+                    segmentId = segment.id, // 这里取的是song的id
+                    page = 1,
+                    isCached = true,
+                    error = null
+                )
+            )
+
+            QueueMutationResult(
+                firstInsertedPosition = 0,
+                autoPlayPosition = 0
+            )
+        }
     }
 
     /**
@@ -228,7 +260,41 @@ abstract class BaseQueueMusicRepository<
      * 添加歌曲到队尾
      */
     override suspend fun addSongToTail(song: S): QueueMutationResult {
-        return QueueMutationResult.Noop
+        return queueMutex.withLock {
+            val segment = song.toSingleSongSegment()
+            val singleQueueSong = song.copyTo(
+                segmentId = song.id,
+                sortOrderInSegment = 0
+            )
+
+            dao.cachePage(
+                segment = segment,
+                songs = listOf(singleQueueSong),
+                page = createSegmentPageEntity(
+                    segmentId = segment.id, // 这里取的是song的id
+                    page = 1,
+                    isCached = true,
+                    error = null
+                )
+            )
+
+            val allSegments = dao.getSegments()
+            val allRefs = dao.getRefs()
+            val queueWasEmpty = allRefs.isEmpty()
+            val firstInsertedPosition = createQueuePositionMapper(allSegments, allRefs).totalSize
+            val newAllRefs = allRefs + createQueueRef(
+                segmentId = segment.id,
+                startOffsetInSegment = 0,
+                length = 1
+            )
+
+            refreshRefsWithStableOrder(newAllRefs)
+
+            QueueMutationResult(
+                firstInsertedPosition = firstInsertedPosition,
+                autoPlayPosition = firstInsertedPosition.takeIf { queueWasEmpty }
+            )
+        }
     }
 
     /**
@@ -292,7 +358,53 @@ abstract class BaseQueueMusicRepository<
         song: S,
         currentGlobalPosition: Int?
     ): QueueMutationResult {
-        return QueueMutationResult.Noop
+        return queueMutex.withLock {
+            val segment = song.toSingleSongSegment()
+            val singleQueueSong = song.copyTo(
+                segmentId = song.id,
+                sortOrderInSegment = 0
+            )
+
+            dao.cachePage(
+                segment = segment,
+                songs = listOf(singleQueueSong),
+                page = createSegmentPageEntity(
+                    segmentId = segment.id, // 这里取的是song的id
+                    page = 1,
+                    isCached = true,
+                    error = null
+                )
+            )
+
+            val allSegments = dao.getSegments()
+            val allRefs = dao.getRefs()
+            val queueWasEmpty = allRefs.isEmpty()
+            val currentTotalSize = createQueuePositionMapper(allSegments, allRefs).totalSize
+            val insertPosition = if (queueWasEmpty) {
+                0
+            } else if (currentGlobalPosition == null) {
+                0
+            } else {
+                (currentGlobalPosition + 1).coerceIn(0, currentTotalSize)
+            }
+            val insertedRef = createQueueRef(
+                segmentId = segment.id,
+                startOffsetInSegment = 0,
+                length = 1
+            )
+            val newAllRefs = insertQueueRefAtPosition(
+                refs = allRefs,
+                position = insertPosition,
+                insertedRef = insertedRef
+            )
+
+            refreshRefsWithStableOrder(newAllRefs)
+
+            QueueMutationResult(
+                firstInsertedPosition = insertPosition,
+                autoPlayPosition = insertPosition.takeIf { queueWasEmpty }
+            )
+        }
     }
 
     private fun insertQueueRefAtPosition(
@@ -343,6 +455,15 @@ abstract class BaseQueueMusicRepository<
         }
         nextRefs += insertedRef
         return nextRefs
+    }
+
+    private suspend fun refreshRefsWithStableOrder(refs: List<SEG_REF>) {
+        val sortIndexes = FractionalIndexing.generateNFractionalIndicesBetween(null, null, refs.size)
+        dao.refreshRefs(
+            refs.mapIndexed { index, ref ->
+                ref.copyTo(sortIndex = sortIndexes[index])
+            }
+        )
     }
 
 //    suspend fun getSegmentFirstSortIndex(): String {
@@ -570,6 +691,19 @@ abstract class BaseQueueMusicRepository<
     ): SEG
 
     protected abstract fun NET_S.toQueueSongEntity(segmentId: String): S
+
+    protected abstract fun S.copyTo(
+        id: String = this.id,
+        segmentId: String = this.segmentId,
+        name: String = this.name,
+        coverUrl: String? = this.coverUrl,
+        artist: String = this.artist,
+        durationMs: Long = this.durationMs,
+        playUrl: String? = this.playUrl,
+        sortOrderInSegment: Int = this.sortOrderInSegment
+    ): S
+
+    protected abstract fun S.toSingleSongSegment(): SEG
 
     protected abstract fun NET_SEG.toQueueSegmentEntity(
         loadedCount: Int,

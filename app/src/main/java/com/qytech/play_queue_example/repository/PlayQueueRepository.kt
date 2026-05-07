@@ -88,6 +88,42 @@ class PlayQueueRepository @Inject constructor(
         )
     }
 
+    override fun QueueSongEntity.copyTo(
+        id: String,
+        segmentId: String,
+        name: String,
+        coverUrl: String?,
+        artist: String,
+        durationMs: Long,
+        playUrl: String?,
+        sortOrderInSegment: Int
+    ): QueueSongEntity {
+        return this.copy(
+            id = id,
+            segmentId = segmentId,
+            name = name,
+            coverUrl = coverUrl,
+            artist = artist,
+            durationMs = durationMs,
+            playUrl = playUrl,
+            sortOrderInSegment = sortOrderInSegment
+        )
+    }
+
+    override fun QueueSongEntity.toSingleSongSegment(): QueueSegmentEntity {
+        return QueueSegmentEntity(
+            id = id,
+            type = "song",
+            name = name,
+            coverUrl = coverUrl,
+            totalCount = 1,
+            loadedCount = 1,
+            pageSize = 1,
+            hasMore = false,
+            lastError = null
+        )
+    }
+
     override fun NetworkSegment.toQueueSegmentEntity(
         loadedCount: Int,
         hasMore: Boolean,
