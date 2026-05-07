@@ -7,6 +7,7 @@ import com.qytech.play_queue.local.IQueueSongEntity
 import com.qytech.play_queue.state.PlaybackQueueState
 import com.qytech.play_queue.data.PreparedPlaybackItem
 import com.qytech.play_queue.data.QueueMutationResult
+import com.qytech.play_queue.data.QueueRemovalResult
 import com.qytech.play_queue.playback.intf.PlayableQueueSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -116,11 +117,18 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
     }
 
     suspend fun hasPrevious(): Boolean {
-        return previousPositionLocked() != null
+        return operationMutex.withLock {
+            val total = queueSource.totalSize()
+            if (total <= 0) return@withLock false
+            previousCandidatePositionLocked(total, _state.value.currentSong?.globalPosition) != null
+        }
     }
 
     suspend fun hasNext(): Boolean {
-        return nextPositionLocked() != null
+        return operationMutex.withLock {
+            val total = queueSource.totalSize()
+            nextCandidatePositionLocked(total, _state.value.currentSong?.globalPosition) != null
+        }
     }
 
     suspend fun refreshPrepared() {
@@ -144,6 +152,54 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
             playAt(autoPlayPosition, shouldPlay = true)
         } else if (result.inserted) {
             refreshPrepared()
+        }
+    }
+
+    suspend fun applyQueueRemovalResult(result: QueueRemovalResult) {
+        operationMutex.withLock {
+            val current = _state.value.currentSong
+            val total = queueSource.totalSize()
+
+            if (total <= 0) {
+                clearPlaybackLocked(incrementRevision = true)
+                return@withLock
+            }
+
+            if (current == null) {
+                _state.value = _state.value.copy(
+                    preparedPrevious = null,
+                    preparedNext = null,
+                    revision = _state.value.revision + 1
+                )
+                return@withLock
+            }
+
+            val currentWasRemoved = current.location.segment.id == result.removedSegmentId ||
+                    result.contains(current.globalPosition)
+            if (currentWasRemoved) {
+                clearPlaybackLocked(incrementRevision = true)
+                return@withLock
+            }
+
+            val adjustedPosition = (
+                    current.globalPosition - result.removedCountBefore(current.globalPosition)
+                    ).coerceIn(0, total - 1)
+            val refreshedCurrent = queueSource.getPlayableSongAt(adjustedPosition)
+            if (refreshedCurrent == null ||
+                refreshedCurrent.song.id != current.song.id ||
+                refreshedCurrent.location.segment.id != current.location.segment.id
+            ) {
+                clearPlaybackLocked(incrementRevision = true)
+                return@withLock
+            }
+
+            _state.value = _state.value.copy(
+                currentSong = refreshedCurrent,
+                revision = _state.value.revision + 1
+            )
+            queueSource.preloadPlaybackAround(adjustedPosition)
+            preparePreviousIfNeededLocked(adjustedPosition)
+            prepareShuffleNextIfNeededLocked(adjustedPosition)
         }
     }
 
@@ -175,6 +231,18 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
 
     private fun setPlayingLocked(playing: Boolean) {
         _state.value = _state.value.copy(isPlaying = playing)
+    }
+
+    private fun clearPlaybackLocked(incrementRevision: Boolean = false) {
+        shuffleBackStack.clear()
+        val currentState = _state.value
+        _state.value = currentState.copy(
+            currentSong = null,
+            isPlaying = false,
+            preparedPrevious = null,
+            preparedNext = null,
+            revision = if (incrementRevision) currentState.revision + 1 else currentState.revision
+        )
     }
 
     private suspend fun nextPositionLocked(): Int? {
@@ -293,6 +361,34 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
                     ?: current?.let {
                         (it - 1 + total) % total
                     } ?: 0
+            }
+        }
+    }
+
+    private fun nextCandidatePositionLocked(
+        total: Int,
+        current: Int?
+    ): Int? {
+        if (total <= 0) return null
+
+        return when (_state.value.playbackMode) {
+            PlaybackMode.Sequence -> {
+                val next = (current ?: -1) + 1
+                if (next in 0 until total) next else null
+            }
+
+            PlaybackMode.RepeatAll -> {
+                val next = (current ?: -1) + 1
+                if (next < total) next else 0
+            }
+
+            PlaybackMode.RepeatOne -> current ?: 0
+
+            PlaybackMode.Shuffle -> {
+                _state.value.preparedNext?.position
+                    ?.takeIf { it in 0 until total }
+                    ?.takeIf { total <= 1 || it != current }
+                    ?: randomPosition(total, current)
             }
         }
     }

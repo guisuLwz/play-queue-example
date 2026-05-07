@@ -6,6 +6,7 @@ import com.qytech.play_queue.data.PageKey
 import com.qytech.play_queue.data.PlayableSong
 import com.qytech.play_queue.data.PositionKey
 import com.qytech.play_queue.data.QueueMutationResult
+import com.qytech.play_queue.data.QueueRemovalResult
 import com.qytech.play_queue.data.RemovedGlobalRange
 import com.qytech.play_queue.data.RepositorySnapshot
 import com.qytech.play_queue.data.SegmentWindowRange
@@ -766,8 +767,34 @@ abstract class BaseQueueMusicRepository<
 //        return FractionalIndexing.generateFractionalIndexBetween(curSortIndex, dao.getSegmentNextSortIndex(curSortIndex))
 //    }
 
-    suspend fun removeQueueSegment(segmentId: String) {
-        dao.removeQueueSegment(segmentId)
+    suspend fun removeQueueSegment(segmentId: String): QueueRemovalResult {
+        return queueMutex.withLock {
+            val refs = dao.getRefs()
+            val removedRanges = mutableListOf<RemovedGlobalRange>()
+            var cursor = 0
+
+            refs.forEach { ref ->
+                val endExclusive = cursor + ref.length
+                if (ref.segmentId == segmentId) {
+                    removedRanges += RemovedGlobalRange(
+                        startInclusive = cursor,
+                        endExclusive = endExclusive
+                    )
+                }
+                cursor = endExclusive
+            }
+
+            dao.removeQueueSegment(segmentId)
+
+            if (removedRanges.isEmpty()) {
+                QueueRemovalResult.none(segmentId)
+            } else {
+                QueueRemovalResult(
+                    removedSegmentId = segmentId,
+                    removedRanges = removedRanges
+                )
+            }
+        }
     }
 
     // preloadWindow：根据当前内存窗口预加载它覆盖到的所有页。

@@ -10,12 +10,9 @@ import com.qytech.play_queue_example.room.entity.queue.toUiModel
 import com.qytech.play_queue_example.state.PlaybackUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -25,17 +22,18 @@ class MainRouteViewModel @Inject constructor(
     private val playbackQueueController: PlaybackQueueController
 ): BaseViewModel() {
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     val playbackState = playbackQueueController.state
-        .flatMapLatest { it ->
-            flowOf(
-                PlaybackUiState(
-                    currentPlayingSong = it.currentSong?.toUiModel(it.isPlaying),
-                    isPlaying = it.isPlaying,
-                    playbackMode = it.playbackMode,
-                )
-            ).flowOn(Dispatchers.IO)
-        }.stateIn(
+        .map { state ->
+            PlaybackUiState(
+                currentPlayingSong = state.currentSong?.toUiModel(state.isPlaying),
+                isPlaying = state.isPlaying,
+                playbackMode = state.playbackMode,
+                hasPrevious = playbackQueueController.hasPrevious(),
+                hasNext = playbackQueueController.hasNext()
+            )
+        }
+        .flowOn(Dispatchers.IO)
+        .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = PlaybackUiState()

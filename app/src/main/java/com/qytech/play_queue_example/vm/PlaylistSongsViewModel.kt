@@ -61,7 +61,9 @@ class PlaylistSongsViewModel @Inject constructor(
                     )
                 },
                 isPlaying = state.isPlaying,
-                playbackMode = state.playbackMode
+                playbackMode = state.playbackMode,
+                hasPrevious = playbackQueueController.hasPrevious(),
+                hasNext = playbackQueueController.hasNext()
             )
         }
         .stateIn(

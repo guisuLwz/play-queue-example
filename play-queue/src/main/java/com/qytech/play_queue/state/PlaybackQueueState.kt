@@ -12,4 +12,5 @@ data class PlaybackQueueState<S : IQueueSongEntity, SEG : IQueueSegmentEntity>(
     val playbackMode: PlaybackMode = PlaybackMode.Sequence,
     val preparedPrevious: PreparedPlaybackItem<S, SEG>? = null,
     val preparedNext: PreparedPlaybackItem<S, SEG>? = null,
+    val revision: Long = 0L
 )

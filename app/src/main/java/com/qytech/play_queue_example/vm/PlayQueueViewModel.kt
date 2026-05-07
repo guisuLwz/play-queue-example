@@ -54,7 +54,9 @@ class PlayQueueViewModel @Inject constructor(
             ),
             playing = playbackState.isPlaying,
             mode = playbackState.playbackMode,
-            window = window
+            window = window,
+            hasPrevious = playbackController.hasPrevious(),
+            hasNext = playbackController.hasNext()
         )
     }.stateIn(
         scope = viewModelScope,
@@ -82,7 +84,9 @@ class PlayQueueViewModel @Inject constructor(
 
     fun onDeleteSegment(segmentId: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            repository.removeQueueSegment(segmentId)
+            val result = repository.removeQueueSegment(segmentId)
+            playbackController.applyQueueRemovalResult(result)
+            repository.preloadQueueWindow(visibleWindow.value)
         }
     }
 
@@ -126,7 +130,9 @@ class PlayQueueViewModel @Inject constructor(
         playingSong: QueueSong?,
         playing: Boolean,
         mode: PlaybackMode,
-        window: IntRange
+        window: IntRange,
+        hasPrevious: Boolean,
+        hasNext: Boolean
     ): PlayQueueUiState {
         val rowsByPosition = window
             .asSequence()
@@ -146,6 +152,8 @@ class PlayQueueViewModel @Inject constructor(
             isPlaying = playing,
             playbackMode = mode,
             visibleWindow = window,
+            hasPrevious = hasPrevious,
+            hasNext = hasNext
         )
     }
 
