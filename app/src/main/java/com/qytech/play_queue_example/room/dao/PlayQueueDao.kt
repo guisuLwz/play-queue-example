@@ -77,6 +77,12 @@ interface PlayQueueDao : BasePlayQueueDao<
     @Query("SELECT * FROM queue_songs WHERE id = :songId")
     override suspend fun getSongsById(songId: String): List<QueueSongEntity>
 
+    @Query("SELECT * FROM queue_songs WHERE id IN (:songIds)")
+    override suspend fun getSongsByIds(songIds: List<String>): List<QueueSongEntity>
+
+    @Query("SELECT * FROM queue_songs WHERE segmentId = :segmentId")
+    override suspend fun getSongsBySegmentId(segmentId: String): List<QueueSongEntity>
+
     @Query("SELECT * FROM queue_segment_refs ORDER BY sortIndex ASC")
     override suspend fun getRefs(): List<QueueSegmentRef>
 

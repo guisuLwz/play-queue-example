@@ -58,6 +58,10 @@ interface BasePlayQueueDao<
 
     suspend fun getSongsById(songId: String): List<S>
 
+    suspend fun getSongsByIds(songIds: List<String>): List<S>
+
+    suspend fun getSongsBySegmentId(segmentId: String): List<S>
+
     suspend fun getRefs(): List<SEG_REF>
 
     suspend fun getRefsBySegmentId(segmentId: String): List<SEG_REF>
