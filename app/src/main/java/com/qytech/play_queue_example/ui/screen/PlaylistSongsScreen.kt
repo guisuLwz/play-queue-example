@@ -1,6 +1,7 @@
 package com.qytech.play_queue_example.ui.screen
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,9 +26,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -56,6 +62,7 @@ fun PlaylistSongsScreen(
     viewModel: PlaylistSongsViewModel = hiltViewModel()
 ) {
     val songs = viewModel.songs.collectAsLazyPagingItems()
+    val playbackState by viewModel.playbackState.collectAsState()
 
     LaunchedEffect(playlist) {
         viewModel.updateParams(playlist)
@@ -85,11 +92,14 @@ fun PlaylistSongsScreen(
                 if (song == null) {
                     LoadingRow()
                 } else {
+                    val currentSong = playbackState.currentPlayingSong
+                    val isCurrent = currentSong?.songId == song.id.toString() &&
+                            currentSong.segmentId == playlist.id.toString()
                     SongRow(
                         song = song,
                         position = song.indexInSegment + 1,
-                        isCurrent = false,
-                        isPlaying = false,
+                        isCurrent = isCurrent,
+                        isPlaying = isCurrent && playbackState.isPlaying,
                         onClick = { viewModel.onClick(playlist, song.indexInSegment) },
                         onAction = { action -> viewModel.onAction(song, action) },
                     )
@@ -200,6 +210,8 @@ private fun SongRow(
                 contentAlignment = Alignment.Center,
             ) {
                 if (isCurrent && isPlaying) {
+                    PauseIcon(tint = Color.White)
+                } else if (isCurrent) {
                     Icon(
                         imageVector = Icons.Default.PlayArrow,
                         contentDescription = null,
@@ -207,8 +219,8 @@ private fun SongRow(
                     )
                 } else {
                     Text(
-                        text = if (isCurrent) "暂停" else position.toString(),
-                        color = if (isCurrent) Color.White else MaterialTheme.colorScheme.onSurface,
+                        text = position.toString(),
+                        color = MaterialTheme.colorScheme.onSurface,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -251,5 +263,31 @@ private fun SongRow(
                 onAction = onAction,
             )
         }
+    }
+}
+
+@Composable
+private fun PauseIcon(
+    tint: Color,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier.size(18.dp)) {
+        val barWidth = size.width * 0.28f
+        val gap = size.width * 0.22f
+        val startX = (size.width - barWidth * 2 - gap) / 2f
+        val radius = barWidth / 2f
+
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(startX, 0f),
+            size = Size(barWidth, size.height),
+            cornerRadius = CornerRadius(radius, radius)
+        )
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(startX + barWidth + gap, 0f),
+            size = Size(barWidth, size.height),
+            cornerRadius = CornerRadius(radius, radius)
+        )
     }
 }

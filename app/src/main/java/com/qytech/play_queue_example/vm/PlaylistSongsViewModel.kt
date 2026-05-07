@@ -12,13 +12,17 @@ import com.qytech.play_queue_example.repository.PLAY_QUEUE_PAGE_SIZE
 import com.qytech.play_queue_example.repository.PlayQueueRepository
 import com.qytech.play_queue_example.repository.SourceRepository
 import com.qytech.play_queue_example.room.entity.queue.QueueSegmentEntity
+import com.qytech.play_queue_example.room.entity.queue.toUiModel
+import com.qytech.play_queue_example.state.PlaybackUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -45,8 +49,37 @@ class PlaylistSongsViewModel @Inject constructor(
             }
     }
 
+    val playbackState = playbackQueueController.state
+        .map { state ->
+            PlaybackUiState(
+                currentPlayingSong = state.currentSong?.let { current ->
+                    current.song.toUiModel(
+                        globalPosition = current.globalPosition,
+                        playlist = current.location.segment,
+                        isPlaying = state.isPlaying
+                    )
+                },
+                isPlaying = state.isPlaying,
+                playbackMode = state.playbackMode
+            )
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = PlaybackUiState()
+        )
+
     fun onClick(playlist: Playlist, offsetInSegment: Int) {
         viewModelScope.launch(Dispatchers.IO) {
+            val current = playbackQueueController.state.value.currentSong
+            val isCurrentSong = current != null &&
+                    current.song.segmentId == playlist.id.toString() &&
+                    current.song.sortOrderInSegment == offsetInSegment
+            if (isCurrentSong) {
+                playbackQueueController.playOrToggle(current.globalPosition)
+                return@launch
+            }
+
             val result = playQueueRepository.playSegmentFromOffset(
                 segment = QueueSegmentEntity(
                     id = playlist.id.toString(),
