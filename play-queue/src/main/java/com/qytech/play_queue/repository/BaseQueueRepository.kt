@@ -32,6 +32,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+private data class DeduplicatedQueueRefs<R : IQueueSegmentRefEntity>(
+    val refs: List<R>,
+    val removedGlobalPositions: List<Int>
+)
+
 abstract class BaseQueueMusicRepository<
         QUERY,
         S : IQueueSongEntity,
@@ -280,9 +285,10 @@ abstract class BaseQueueMusicRepository<
 
             val allSegments = dao.getSegments()
             val allRefs = dao.getRefs()
-            val queueWasEmpty = allRefs.isEmpty()
-            val firstInsertedPosition = createQueuePositionMapper(allSegments, allRefs).totalSize
-            val newAllRefs = allRefs + createQueueRef(
+            val deduplicatedRefs = removeExistingQueuePositionsBySongId(allRefs, song.id)
+            val queueWasEmpty = deduplicatedRefs.refs.isEmpty()
+            val firstInsertedPosition = createQueuePositionMapper(allSegments, deduplicatedRefs.refs).totalSize
+            val newAllRefs = deduplicatedRefs.refs + createQueueRef(
                 segmentId = segment.id,
                 startOffsetInSegment = 0,
                 length = 1
@@ -378,14 +384,24 @@ abstract class BaseQueueMusicRepository<
 
             val allSegments = dao.getSegments()
             val allRefs = dao.getRefs()
-            val queueWasEmpty = allRefs.isEmpty()
-            val currentTotalSize = createQueuePositionMapper(allSegments, allRefs).totalSize
+            val deduplicatedRefs = removeExistingQueuePositionsBySongId(allRefs, song.id)
+            val queueWasEmpty = deduplicatedRefs.refs.isEmpty()
+            val currentTotalSize = createQueuePositionMapper(allSegments, deduplicatedRefs.refs).totalSize
             val insertPosition = if (queueWasEmpty) {
                 0
             } else if (currentGlobalPosition == null) {
                 0
             } else {
-                (currentGlobalPosition + 1).coerceIn(0, currentTotalSize)
+                val removedBeforeCurrent = deduplicatedRefs.removedGlobalPositions.count {
+                    it < currentGlobalPosition
+                }
+                val adjustedCurrentPosition = (currentGlobalPosition - removedBeforeCurrent)
+                    .coerceIn(0, currentTotalSize)
+                if (currentGlobalPosition in deduplicatedRefs.removedGlobalPositions) {
+                    adjustedCurrentPosition
+                } else {
+                    (adjustedCurrentPosition + 1).coerceIn(0, currentTotalSize)
+                }
             }
             val insertedRef = createQueueRef(
                 segmentId = segment.id,
@@ -393,7 +409,7 @@ abstract class BaseQueueMusicRepository<
                 length = 1
             )
             val newAllRefs = insertQueueRefAtPosition(
-                refs = allRefs,
+                refs = deduplicatedRefs.refs,
                 position = insertPosition,
                 insertedRef = insertedRef
             )
@@ -454,6 +470,92 @@ abstract class BaseQueueMusicRepository<
             }
         }
         nextRefs += insertedRef
+        return nextRefs
+    }
+
+    private suspend fun removeExistingQueuePositionsBySongId(
+        refs: List<SEG_REF>,
+        songId: String
+    ): DeduplicatedQueueRefs<SEG_REF> {
+        if (refs.isEmpty()) {
+            return DeduplicatedQueueRefs(
+                refs = refs,
+                removedGlobalPositions = emptyList()
+            )
+        }
+
+        val cachedOffsetsBySegment = dao.getSongsById(songId)
+            .groupBy(
+                keySelector = { it.segmentId },
+                valueTransform = { it.sortOrderInSegment }
+            )
+            .mapValues { (_, offsets) -> offsets.toSet() }
+
+        val nextRefs = mutableListOf<SEG_REF>()
+        val removedGlobalPositions = mutableListOf<Int>()
+        var cursor = 0
+
+        refs.forEach { ref ->
+            val refStart = ref.startOffsetInSegment
+            val refEndExclusive = ref.startOffsetInSegment + ref.length
+            val offsetsToRemove = if (ref.segmentId == songId) {
+                (refStart until refEndExclusive).toList()
+            } else {
+                cachedOffsetsBySegment[ref.segmentId]
+                    ?.asSequence()
+                    ?.filter { offset -> offset in refStart until refEndExclusive }
+                    ?.distinct()
+                    ?.sorted()
+                    ?.toList()
+                    .orEmpty()
+            }
+
+            if (offsetsToRemove.isEmpty()) {
+                nextRefs += ref
+            } else {
+                removedGlobalPositions += offsetsToRemove.map { offset ->
+                    cursor + (offset - refStart)
+                }
+                nextRefs += splitRefExcludingOffsets(ref, offsetsToRemove)
+            }
+
+            cursor += ref.length
+        }
+
+        return DeduplicatedQueueRefs(
+            refs = nextRefs,
+            removedGlobalPositions = removedGlobalPositions.sorted()
+        )
+    }
+
+    private fun splitRefExcludingOffsets(
+        ref: SEG_REF,
+        offsetsToRemove: List<Int>
+    ): List<SEG_REF> {
+        val nextRefs = mutableListOf<SEG_REF>()
+        val refEndExclusive = ref.startOffsetInSegment + ref.length
+        var nextStart = ref.startOffsetInSegment
+
+        offsetsToRemove.distinct().sorted().forEach { offset ->
+            if (offset < nextStart || offset >= refEndExclusive) return@forEach
+            if (nextStart < offset) {
+                nextRefs += createQueueRef(
+                    segmentId = ref.segmentId,
+                    startOffsetInSegment = nextStart,
+                    length = offset - nextStart
+                )
+            }
+            nextStart = offset + 1
+        }
+
+        if (nextStart < refEndExclusive) {
+            nextRefs += createQueueRef(
+                segmentId = ref.segmentId,
+                startOffsetInSegment = nextStart,
+                length = refEndExclusive - nextStart
+            )
+        }
+
         return nextRefs
     }
 

@@ -56,6 +56,8 @@ interface BasePlayQueueDao<
 
     suspend fun getSongAtPosition(segmentId: String, sortOrderInSegment: Int): S?
 
+    suspend fun getSongsById(songId: String): List<S>
+
     suspend fun getRefs(): List<SEG_REF>
 
     suspend fun getRefsBySegmentId(segmentId: String): List<SEG_REF>
