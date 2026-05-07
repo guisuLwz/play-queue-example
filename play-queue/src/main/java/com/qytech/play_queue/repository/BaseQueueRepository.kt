@@ -1,6 +1,5 @@
 package com.qytech.play_queue.repository
 
-import com.davidarvelo.fractionalindexing.FractionalIndexing
 import com.qytech.play_queue.data.DeduplicatedQueueRefs
 import com.qytech.play_queue.data.PageKey
 import com.qytech.play_queue.data.PlayableSong
@@ -28,6 +27,7 @@ import com.qytech.play_queue.remote.BaseMusicApi
 import com.qytech.play_queue.remote.INetworkPage
 import com.qytech.play_queue.remote.INetworkSegment
 import com.qytech.play_queue.remote.INetworkSong
+import com.qytech.play_queue.util.FractionalIndexing
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,7 +47,7 @@ abstract class BaseQueueMusicRepository<
         NET_SEG : INetworkSegment,
         SEG_PAGE : IQueueSegmentPageEntity,
         NET_SEG_PAGE : INetworkPage<NET_S, NET_SEG>,
-        SEG_REF: IQueueSegmentRefEntity,
+        SEG_REF : IQueueSegmentRefEntity,
         MAPPER : BaseQueuePositionMapper<SEG, SEG_REF>>(
     private val dao: BasePlayQueueDao<QUERY, S, SEG, SEG_PAGE, SEG_REF>,
     private val api: BaseMusicApi<NET_S, NET_SEG, NET_SEG_PAGE>,
@@ -149,11 +149,13 @@ abstract class BaseQueueMusicRepository<
 
             dao.refreshPlayQueue(
                 segments = listOf(segment),
-                refs = listOf(createQueueRef(
-                    segmentId = segment.id,
-                    startOffsetInSegment = 0,
-                    length = segment.logicalLength()
-                ))
+                refs = listOf(
+                    createQueueRef(
+                        segmentId = segment.id,
+                        startOffsetInSegment = 0,
+                        length = segment.logicalLength()
+                    )
+                )
             )
 
             return@withLock QueueMutationResult(
@@ -177,11 +179,13 @@ abstract class BaseQueueMusicRepository<
 
             dao.refreshPlayQueue(
                 segments = listOf(segment),
-                refs = listOf(createQueueRef(
-                    segmentId = segment.id,
-                    startOffsetInSegment = 0,
-                    length = 1
-                ))
+                refs = listOf(
+                    createQueueRef(
+                        segmentId = segment.id,
+                        startOffsetInSegment = 0,
+                        length = 1
+                    )
+                )
             )
 
             dao.cachePage(
@@ -217,11 +221,13 @@ abstract class BaseQueueMusicRepository<
 
             dao.refreshPlayQueue(
                 segments = listOf(segment),
-                refs = listOf(createQueueRef(
-                    segmentId = segment.id,
-                    startOffsetInSegment = 0,
-                    length = totalSize
-                ))
+                refs = listOf(
+                    createQueueRef(
+                        segmentId = segment.id,
+                        startOffsetInSegment = 0,
+                        length = totalSize
+                    )
+                )
             )
 
             QueueMutationResult(
@@ -243,7 +249,8 @@ abstract class BaseQueueMusicRepository<
             val allRefs = dao.getRefs()
             val queueWasEmpty = allRefs.isEmpty()
             val loadedSongs = dao.getSongsBySegmentId(queueSegment.id)
-            val withoutSameSegment = removeExistingQueuePositionsBySegmentId(allRefs, queueSegment.id)
+            val withoutSameSegment =
+                removeExistingQueuePositionsBySegmentId(allRefs, queueSegment.id)
             val insertedRef = createQueueRef(
                 segmentId = queueSegment.id,
                 startOffsetInSegment = 0,
@@ -293,7 +300,8 @@ abstract class BaseQueueMusicRepository<
             val allRefs = dao.getRefs()
             val deduplicatedRefs = removeExistingQueuePositionsBySongId(allRefs, song.id)
             val queueWasEmpty = deduplicatedRefs.refs.isEmpty()
-            val firstInsertedPosition = createQueuePositionMapper(allSegments, deduplicatedRefs.refs).totalSize
+            val firstInsertedPosition =
+                createQueuePositionMapper(allSegments, deduplicatedRefs.refs).totalSize
             val newAllRefs = deduplicatedRefs.refs + createQueueRef(
                 segmentId = segment.id,
                 startOffsetInSegment = 0,
@@ -324,8 +332,10 @@ abstract class BaseQueueMusicRepository<
             val allRefs = dao.getRefs()
             val queueWasEmpty = allRefs.isEmpty()
             val loadedSongs = dao.getSongsBySegmentId(queueSegment.id)
-            val withoutSameSegment = removeExistingQueuePositionsBySegmentId(allRefs, queueSegment.id)
-            val currentTotalSize = createQueuePositionMapper(allSegments, withoutSameSegment.refs).totalSize
+            val withoutSameSegment =
+                removeExistingQueuePositionsBySegmentId(allRefs, queueSegment.id)
+            val currentTotalSize =
+                createQueuePositionMapper(allSegments, withoutSameSegment.refs).totalSize
             val insertPosition = if (queueWasEmpty) {
                 0
             } else if (currentGlobalPosition == null) {
@@ -355,7 +365,10 @@ abstract class BaseQueueMusicRepository<
 
             refreshRefsWithStableOrder(newAllRefs)
             val firstInsertedPosition = firstGlobalPositionOfSegment(newAllRefs, queueSegment.id)
-                ?: insertPosition.coerceIn(0, createQueuePositionMapper(allSegments, newAllRefs).totalSize)
+                ?: insertPosition.coerceIn(
+                    0,
+                    createQueuePositionMapper(allSegments, newAllRefs).totalSize
+                )
 
             QueueMutationResult(
                 firstInsertedPosition = firstInsertedPosition,
@@ -393,7 +406,8 @@ abstract class BaseQueueMusicRepository<
             val allRefs = dao.getRefs()
             val deduplicatedRefs = removeExistingQueuePositionsBySongId(allRefs, song.id)
             val queueWasEmpty = deduplicatedRefs.refs.isEmpty()
-            val currentTotalSize = createQueuePositionMapper(allSegments, deduplicatedRefs.refs).totalSize
+            val currentTotalSize =
+                createQueuePositionMapper(allSegments, deduplicatedRefs.refs).totalSize
             val insertPosition = if (queueWasEmpty) {
                 0
             } else if (currentGlobalPosition == null) {
@@ -737,7 +751,8 @@ abstract class BaseQueueMusicRepository<
             dao.refreshRefs(emptyList())
             return
         }
-        val sortIndexes = FractionalIndexing.generateNFractionalIndicesBetween(null, null, refs.size)
+        val sortIndexes =
+            FractionalIndexing.generateNFractionalIndicesBetween(null, null, refs.size)
         dao.refreshRefs(
             refs.mapIndexed { index, ref ->
                 ref.copyTo(sortIndex = sortIndexes[index])
@@ -978,7 +993,10 @@ abstract class BaseQueueMusicRepository<
         return totalCount ?: (loadedCount + pageSize)
     }
 
-    protected abstract fun createQueuePositionMapper(segments: List<SEG>, queueRefs: List<SEG_REF>): MAPPER
+    protected abstract fun createQueuePositionMapper(
+        segments: List<SEG>,
+        queueRefs: List<SEG_REF>
+    ): MAPPER
 
     protected abstract fun createSegmentPageEntity(
         segmentId: String,
