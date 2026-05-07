@@ -85,6 +85,7 @@ class SourceRepository @Inject constructor(
                 initialLoadSize = PLAYLIST_PAGE_SIZE * 2,
                 prefetchDistance = 6,
                 enablePlaceholders = false,
+                maxSize = MAX_LOAD_SIZE
             ),
             pagingSourceFactory = { sourceDao.getPlaylistPagingSource() },
         )
@@ -97,6 +98,7 @@ class SourceRepository @Inject constructor(
                 initialLoadSize = SONG_PAGE_SIZE * 2,
                 prefetchDistance = SONG_PAGE_SIZE,
                 enablePlaceholders = true,
+                maxSize = MAX_LOAD_SIZE
             ),
             pagingSourceFactory = { sourceDao.getSongPagingSource(playlistId) },
         )
@@ -147,13 +149,9 @@ class SourceRepository @Inject constructor(
         private const val PLAYLIST_COUNT = 96
         private const val PLAYLIST_PAGE_SIZE = 12
         private const val SONG_PAGE_SIZE = 50
-        private const val QUEUE_PAGE_SIZE = 50
         internal const val MAX_LOAD_SIZE = 250
-        private const val PLAYBACK_PRELOAD_BEHIND = 20
-        private const val PLAYBACK_PRELOAD_AHEAD = 100
         private const val MILLION_ROW_PLAYLIST_COUNT = 3
         private const val MILLION_ROW_PLAYLIST_SIZE = 350_000
-        private const val SONG_ID_STRIDE = 10_000_000L
     }
 
 }

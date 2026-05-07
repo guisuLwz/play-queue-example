@@ -16,6 +16,7 @@ import com.qytech.play_queue.local.IQueueSegmentRefEntity
 import com.qytech.play_queue.local.IQueueSongEntity
 import com.qytech.play_queue.playback.intf.PlayableQueueSource
 import com.qytech.play_queue.playback.intf.SegmentQueueActionTarget
+import com.qytech.play_queue.playback.intf.SongQueueActionTarget
 import com.qytech.play_queue.remote.BaseMusicApi
 import com.qytech.play_queue.remote.INetworkPage
 import com.qytech.play_queue.remote.INetworkSegment
@@ -44,7 +45,7 @@ abstract class BaseQueueMusicRepository<
     private val dao: BasePlayQueueDao<QUERY, S, SEG, SEG_PAGE, SEG_REF>,
     private val api: BaseMusicApi<NET_S, NET_SEG, NET_SEG_PAGE>,
     private val pageSize: Int = 50
-) : PlayableQueueSource<S, SEG>, SegmentQueueActionTarget<SEG> {
+) : PlayableQueueSource<S, SEG>, SegmentQueueActionTarget<SEG>, SongQueueActionTarget<S> {
 
     init {
         require(pageSize in 1..50) {
@@ -132,6 +133,9 @@ abstract class BaseQueueMusicRepository<
         }
     }
 
+    /**
+     * 现在播放片段
+     */
     override suspend fun playSegmentNow(segment: SEG): QueueMutationResult {
         return queueMutex.withLock {
             if (segment.logicalLength() <= 0) return@withLock QueueMutationResult.Noop
@@ -152,6 +156,16 @@ abstract class BaseQueueMusicRepository<
         }
     }
 
+    /**
+     * 现在播放歌曲
+     */
+    override suspend fun playSongNow(song: S): QueueMutationResult {
+        return QueueMutationResult.Noop
+    }
+
+    /**
+     * 点击片段中的某一首歌播放
+     */
     override suspend fun playSegmentFromOffset(
         segment: SEG,
         offsetInSegment: Int
@@ -178,7 +192,9 @@ abstract class BaseQueueMusicRepository<
         }
     }
 
-
+    /**
+     * 添加片段到队尾
+     */
     override suspend fun addSegmentToTail(segment: SEG): QueueMutationResult {
         return queueMutex.withLock {
             if (segment.logicalLength() <= 0) return@withLock QueueMutationResult.Noop
@@ -208,6 +224,16 @@ abstract class BaseQueueMusicRepository<
         }
     }
 
+    /**
+     * 添加歌曲到队尾
+     */
+    override suspend fun addSongToTail(song: S): QueueMutationResult {
+        return QueueMutationResult.Noop
+    }
+
+    /**
+     * 将片段插入下一首播放
+     */
     override suspend fun insertSegmentToNext(
         segment: SEG,
         currentGlobalPosition: Int?
@@ -257,6 +283,16 @@ abstract class BaseQueueMusicRepository<
                 autoPlayPosition = insertPosition.takeIf { queueWasEmpty }
             )
         }
+    }
+
+    /**
+     * 将歌曲插入下一首播放
+     */
+    override suspend fun insertSongToNext(
+        song: S,
+        currentGlobalPosition: Int?
+    ): QueueMutationResult {
+        return QueueMutationResult.Noop
     }
 
     private fun insertQueueRefAtPosition(
