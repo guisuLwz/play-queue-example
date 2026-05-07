@@ -96,33 +96,9 @@ class PlayQueueViewModel @Inject constructor(
         }
     }
 
-    fun togglePlayPause() {
-        viewModelScope.launch(Dispatchers.IO) {
-            playbackController.togglePlayPause()
-        }
-    }
-
-    fun previous() {
-        viewModelScope.launch(Dispatchers.IO) {
-            playbackController.previous()
-        }
-    }
-
     fun next() {
         viewModelScope.launch(Dispatchers.IO) {
             playbackController.next()
-        }
-    }
-
-    fun cyclePlaybackMode() {
-        viewModelScope.launch(Dispatchers.IO) {
-            playbackController.cyclePlaybackMode()
-        }
-    }
-
-    fun retry(segmentId: String, page: Int) {
-        viewModelScope.launch(Dispatchers.IO) {
-            repository.retry(segmentId, page)
         }
     }
 

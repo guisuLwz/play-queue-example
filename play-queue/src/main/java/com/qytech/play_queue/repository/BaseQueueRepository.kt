@@ -833,16 +833,16 @@ abstract class BaseQueueMusicRepository<
             .distinct()
 
         pageKeys.forEach { key ->
-            loadPage(key.segmentId, key.page, forceRetry = false)
+            loadPage(key.segmentId, key.segmentType, key.page, forceRetry = false)
         }
     }
 
     /**
      * 用户点击错误行时，强制重试某个歌单某一页。
      */
-    suspend fun retry(playlistId: String, page: Int) {
+    suspend fun retry(segmentId: String, segmentType: String, page: Int) {
         // forceRetry=true 表示即使这页有错误记录，也允许重新请求。
-        loadPage(playlistId, page, forceRetry = true)
+        loadPage(segmentId, segmentType, page, forceRetry = true)
     }
 
     /**
@@ -865,6 +865,7 @@ abstract class BaseQueueMusicRepository<
 
         loadPage(
             segmentId = initialLocation.segment.id,
+            segmentType = initialLocation.segment.type,
             page = initialLocation.page,
             forceRetry = forceRetry
         )
@@ -904,8 +905,8 @@ abstract class BaseQueueMusicRepository<
     }
 
     // loadPage：加载某个歌单某一页。
-    private suspend fun loadPage(segmentId: String, page: Int, forceRetry: Boolean) {
-        val key = PageKey(segmentId = segmentId, page = page)
+    private suspend fun loadPage(segmentId: String, segmentType: String, page: Int, forceRetry: Boolean) {
+        val key = PageKey(segmentId = segmentId, segmentType = segmentType, page = page)
         loadMutex.withLock {
             val existing = dao.getPage(segmentId, page)
             if (key in loadingPageKeys.value) return
@@ -916,7 +917,7 @@ abstract class BaseQueueMusicRepository<
 
         try {
             val segment = dao.getSegments().firstOrNull { it.id == segmentId } ?: return
-            val pageResult = api.fetchSongs(segmentId, page, segment.pageSize)
+            val pageResult = api.fetchSongs(segmentId, segmentType, page, segment.pageSize)
             val songs = pageResult.songs.map { song ->
                 song.toQueueSongEntity(segmentId)
             }

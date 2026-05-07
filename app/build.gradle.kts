@@ -17,7 +17,7 @@ android {
 
     defaultConfig {
         applicationId = "com.qytech.play_queue_example"
-        minSdk = 30
+        minSdk = 29
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"

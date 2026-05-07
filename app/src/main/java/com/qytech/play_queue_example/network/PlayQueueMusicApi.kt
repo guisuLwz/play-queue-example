@@ -18,6 +18,7 @@ class PlayQueueMusicApi @Inject constructor(
 
     override suspend fun fetchSongs(
         segmentId: String,
+        segmentType: String,
         page: Int,
         pageSize: Int
     ): INetworkPage<NetworkSong, NetworkSegment> {
@@ -49,9 +50,9 @@ class PlayQueueMusicApi @Inject constructor(
 
         return NetworkPage(
             segment = NetworkSegment(
-                id = segment.id.toString(),
+                id = segmentId,
                 name = segment.name,
-                type = "playlist",
+                type = segmentType,
                 coverUrl = null,
                 totalCount = segment.totalCount
             ),

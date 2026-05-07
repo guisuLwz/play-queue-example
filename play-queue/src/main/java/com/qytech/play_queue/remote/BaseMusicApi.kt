@@ -9,6 +9,7 @@ abstract class BaseMusicApi<S: INetworkSong, SEG: INetworkSegment, SEG_PAGE: INe
 
     abstract suspend fun fetchSongs(
         segmentId: String,
+        segmentType: String,
         page: Int,
         pageSize: Int
     ): INetworkPage<S, SEG>
