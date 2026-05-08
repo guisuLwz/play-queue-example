@@ -16,6 +16,16 @@ interface PlayableQueueSource<S : IQueueSongEntity, SEG : IQueueSegmentEntity> {
 
     suspend fun getSongSegmentId(songId: String): String?
 
+    suspend fun findPreviousPlayableSong(
+        globalPosition: Int?,
+        wrap: Boolean = false
+    ): PlayableSong<S, SEG>?
+
+    suspend fun findNextPlayableSong(
+        globalPosition: Int?,
+        wrap: Boolean = false
+    ): PlayableSong<S, SEG>?
+
     suspend fun preloadPlaybackAround(
         globalPosition: Int,
         lookBehindPages: Int = 1,

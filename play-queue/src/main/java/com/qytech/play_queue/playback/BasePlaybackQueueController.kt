@@ -21,13 +21,30 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
     private val maxShuffleHistory: Int = DEFAULT_MAX_SHUFFLE_HISTORY,
     private val onPreparedPrevious: suspend (PlayableSong<S, SEG>) -> Unit = {},
     private val onPreparedNext: suspend (PlayableSong<S, SEG>) -> Unit = {},
-    private val onPreparePlay: suspend (PlayableSong<S, SEG>) -> Unit
+    private val onPreparePlay: suspend (PlayableSong<S, SEG>) -> Unit,
+    private val onAutoPreparedPrevious: suspend () -> Unit,
 ) {
     private val operationMutex = Mutex()
     private val shuffleBackStack = ArrayDeque<Int>()
     private val _state = MutableStateFlow(PlaybackQueueState<S, SEG>())
 
     val state: StateFlow<PlaybackQueueState<S, SEG>> = _state.asStateFlow()
+
+    suspend fun autoPlayNext(songId: String) {
+        return operationMutex.withLock {
+            val globalPosition = queueSource.getSongGlobalPosition(songId) ?: return@withLock
+            if (songId == _state.value.currentSong?.song?.id) return@withLock
+            val playableSong = queueSource.getPlayableSongAt(globalPosition)
+            _state.value = _state.value.copy(
+                currentSong = playableSong,
+                isPlaying = true
+            )
+
+//            preparePreviousIfNeededLocked(globalPosition)
+            onAutoPreparedPrevious()
+            prepareNextIfNeededLocked(globalPosition)
+        }
+    }
 
     suspend fun playOrToggle(globalPosition: Int): PlayableSong<S, SEG>? {
         return operationMutex.withLock {
@@ -74,11 +91,45 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
         }
     }
 
+    suspend fun play(): PlayableSong<S, SEG>? {
+        return operationMutex.withLock {
+            val current = _state.value.currentSong
+            if (current == null) {
+                null
+            } else {
+                val nextPlaying = !_state.value.isPlaying
+                if (!nextPlaying) return null
+                setPlayingLocked(true)
+                queueSource.preloadPlaybackAround(current.globalPosition)
+                preparePreviousIfNeededLocked(current.globalPosition)
+                prepareNextIfNeededLocked(current.globalPosition)
+                current
+            }
+        }
+    }
+
+    suspend fun pause(): PlayableSong<S, SEG>? {
+        return operationMutex.withLock {
+            val current = _state.value.currentSong
+            if (current == null) {
+                null
+            } else {
+                val nextPlaying = !_state.value.isPlaying
+                if (nextPlaying) return null
+                setPlayingLocked(false)
+                queueSource.preloadPlaybackAround(current.globalPosition)
+                preparePreviousIfNeededLocked(current.globalPosition)
+                prepareNextIfNeededLocked(current.globalPosition)
+                current
+            }
+        }
+    }
+
     suspend fun previous(): PlayableSong<S, SEG>? {
         return operationMutex.withLock {
-            val target = previousPositionLocked() ?: return@withLock null
-            playAtLocked(
-                globalPosition = target,
+            val playableSong = previousPlayableSongLocked() ?: return@withLock null
+            playResolvedSongLocked(
+                playableSong = playableSong,
 //                shouldPlay = _state.value.isPlaying || _state.value.currentSong == null 当前不播放状态不会被强行改变
                 shouldPlay = true // 强行播放
             )
@@ -87,9 +138,9 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
 
     suspend fun next(): PlayableSong<S, SEG>? {
         return operationMutex.withLock {
-            val target = nextPositionLocked() ?: return@withLock null
-            playAtLocked(
-                globalPosition = target,
+            val playableSong = nextPlayableSongLocked() ?: return@withLock null
+            playResolvedSongLocked(
+                playableSong = playableSong,
 //                shouldPlay = _state.value.isPlaying || _state.value.currentSong == null
                 shouldPlay = true // 强行播放
             )
@@ -220,14 +271,21 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
         shouldPlay: Boolean
     ): PlayableSong<S, SEG>? {
         val playableSong = queueSource.getPlayableSongAt(globalPosition) ?: return null
+        return playResolvedSongLocked(playableSong, shouldPlay)
+    }
+
+    private suspend fun playResolvedSongLocked(
+        playableSong: PlayableSong<S, SEG>,
+        shouldPlay: Boolean
+    ): PlayableSong<S, SEG> {
         _state.value = _state.value.copy(
             currentSong = playableSong,
             isPlaying = shouldPlay
         )
-        queueSource.preloadPlaybackAround(globalPosition)
+        queueSource.preloadPlaybackAround(playableSong.globalPosition)
         if (shouldPlay) onPreparePlay(playableSong)
-        preparePreviousIfNeededLocked(globalPosition)
-        prepareNextIfNeededLocked(globalPosition)
+        preparePreviousIfNeededLocked(playableSong.globalPosition)
+        prepareNextIfNeededLocked(playableSong.globalPosition)
         return playableSong
     }
 
@@ -245,6 +303,51 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
             preparedNext = null,
             revision = if (incrementRevision) currentState.revision + 1 else currentState.revision
         )
+    }
+
+    private suspend fun nextPlayableSongLocked(): PlayableSong<S, SEG>? {
+        val total = queueSource.totalSize()
+        if (total <= 0) return null
+        val current = _state.value.currentSong?.globalPosition
+
+        val playableSong = when (_state.value.playbackMode) {
+            PlaybackMode.Sequence -> queueSource.findNextPlayableSong(current, wrap = false)
+            PlaybackMode.RepeatAll -> queueSource.findNextPlayableSong(current, wrap = true)
+            PlaybackMode.RepeatOne -> queueSource.getPlayableSongAt(current ?: 0)
+                ?: queueSource.findNextPlayableSong(current, wrap = true)
+
+            PlaybackMode.Shuffle -> {
+                val randomStart = randomPosition(total, current)
+                queueSource.findNextPlayableSong(randomStart - 1, wrap = true)
+            }
+        }
+
+        if (playableSong != null && _state.value.playbackMode == PlaybackMode.Shuffle && current != null) {
+            pushShuffleHistory(current)
+        }
+        clearPreparedNextLocked()
+        return playableSong
+    }
+
+    private suspend fun previousPlayableSongLocked(): PlayableSong<S, SEG>? {
+        val total = queueSource.totalSize()
+        if (total <= 0) return null
+        val current = _state.value.currentSong?.globalPosition
+
+        return when (_state.value.playbackMode) {
+            PlaybackMode.Sequence -> queueSource.findPreviousPlayableSong(current, wrap = false)
+            PlaybackMode.RepeatAll -> queueSource.findPreviousPlayableSong(current, wrap = true)
+            PlaybackMode.RepeatOne -> queueSource.getPlayableSongAt(current ?: 0)
+                ?: queueSource.findPreviousPlayableSong(current, wrap = true)
+
+            PlaybackMode.Shuffle -> {
+                while (true) {
+                    val historyPosition = popShuffleHistory() ?: break
+                    queueSource.getPlayableSongAt(historyPosition)?.let { return it }
+                }
+                queueSource.findPreviousPlayableSong(current, wrap = true)
+            }
+        }
     }
 
     private suspend fun nextPositionLocked(): Int? {

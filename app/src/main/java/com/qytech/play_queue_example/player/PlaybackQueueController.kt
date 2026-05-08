@@ -21,6 +21,9 @@ class PlaybackQueueController @Inject constructor(
     onPreparePlay = {
 
     },
+    onAutoPreparedPrevious = {
+
+    }
 ) {
 
 }

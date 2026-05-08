@@ -864,6 +864,56 @@ abstract class BaseQueueMusicRepository<
         }
     }
 
+    override suspend fun findPreviousPlayableSong(
+        globalPosition: Int?,
+        wrap: Boolean
+    ): PlayableSong<S, SEG>? {
+        val total = totalSize()
+        if (total <= 0) return null
+
+        val start = ((globalPosition ?: total) - 1).coerceAtMost(total - 1)
+        findPlayableSongBackward(start, 0)?.let { return it }
+
+        if (!wrap || globalPosition == null) return null
+        return findPlayableSongBackward(total - 1, globalPosition.coerceIn(0, total - 1))
+    }
+
+    override suspend fun findNextPlayableSong(
+        globalPosition: Int?,
+        wrap: Boolean
+    ): PlayableSong<S, SEG>? {
+        val total = totalSize()
+        if (total <= 0) return null
+
+        val start = ((globalPosition ?: -1) + 1).coerceAtLeast(0)
+        findPlayableSongForward(start, total - 1)?.let { return it }
+
+        if (!wrap || globalPosition == null) return null
+        return findPlayableSongForward(0, globalPosition.coerceIn(0, total - 1))
+    }
+
+    private suspend fun findPlayableSongBackward(
+        start: Int,
+        endInclusive: Int
+    ): PlayableSong<S, SEG>? {
+        if (start < endInclusive) return null
+        for (position in start downTo endInclusive) {
+            getPlayableSongAt(position)?.let { return it }
+        }
+        return null
+    }
+
+    private suspend fun findPlayableSongForward(
+        start: Int,
+        endInclusive: Int
+    ): PlayableSong<S, SEG>? {
+        if (start > endInclusive) return null
+        for (position in start..endInclusive) {
+            getPlayableSongAt(position)?.let { return it }
+        }
+        return null
+    }
+
     private suspend fun findSongQueueLocationLocked(songId: String): SongQueueLocation? {
         val mapper = createQueuePositionMapper(dao.getSegments(), dao.getRefs())
         if (mapper.totalSize <= 0) return null
