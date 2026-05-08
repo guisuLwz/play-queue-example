@@ -16,7 +16,7 @@ data class NetworkSong(
     override val id: String,
     override val name: String,
     override val coverUrl: String?,
-    override val artist: String,
+    override val singerName: String,
     override val durationMs: Long,
     override val playUrl: String?,
     override val sortOrderInSegment: Int,

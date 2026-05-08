@@ -108,7 +108,7 @@ class PlaylistSongsViewModel @Inject constructor(
                 segmentId = song.id.toString(),
                 name = song.title,
                 coverUrl = null,
-                artist = song.artist,
+                singerName = song.artist,
                 durationMs = song.durationSeconds * 1000L,
                 playUrl = null,
                 sortOrderInSegment = 0

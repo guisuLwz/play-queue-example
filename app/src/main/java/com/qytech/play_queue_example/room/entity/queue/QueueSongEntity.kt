@@ -15,7 +15,7 @@ data class QueueSongEntity(
     override val segmentId: String,
     override val name: String,
     override val coverUrl: String?,
-    override val artist: String,
+    override val singerName: String,
     override val durationMs: Long,
     override val playUrl: String?,
     override val sortOrderInSegment: Int
@@ -31,7 +31,7 @@ fun QueueSongEntity.toUiModel(
     segmentId = segmentId,
     segmentName = playlist.name,
     name = name,
-    artist = artist,
+    singerName = singerName,
     durationText = durationMs.toDurationText(),
     isPlaying = isPlaying
 )

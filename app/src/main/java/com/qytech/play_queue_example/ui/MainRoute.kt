@@ -33,13 +33,9 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.qytech.play_queue.data.label
-import com.qytech.play_queue.state.PlaybackQueueState
 import com.qytech.play_queue_example.global.PlayQueue
 import com.qytech.play_queue_example.global.PlaylistSongs
 import com.qytech.play_queue_example.global.Playlists
-import com.qytech.play_queue_example.room.entity.queue.QueueSegmentEntity
-import com.qytech.play_queue_example.room.entity.queue.QueueSongEntity
-import com.qytech.play_queue_example.state.PlayQueueUiState
 import com.qytech.play_queue_example.state.PlaybackUiState
 import com.qytech.play_queue_example.ui.screen.PlayQueueScreen
 import com.qytech.play_queue_example.ui.screen.PlaylistSongsScreen
@@ -161,7 +157,7 @@ private fun PlayerController(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = currentSong?.let { "${it.artist} · ${it.durationText}" }
+                        text = currentSong?.let { "${it.singerName} · ${it.durationText}" }
                             ?: "从歌单或歌曲菜单添加到播放列表",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -137,7 +137,7 @@ class SourceRepository @Inject constructor(
                 id = playlist.id * 10_000_000 + number,
                 playlistId = playlist.id,
                 songName = "Track ${number.toString().padStart(2, '0')} - ${playlist.name}",
-                artist = artists[(indexInSegment + playlist.id.toInt()) % artists.size],
+                singerName = artists[(indexInSegment + playlist.id.toInt()) % artists.size],
                 album = albums[(indexInSegment / 3 + playlist.id.toInt()) % albums.size],
                 durationSeconds = 154 + ((indexInSegment * 17 + playlist.id.toInt()) % 132),
                 indexInSegment = indexInSegment

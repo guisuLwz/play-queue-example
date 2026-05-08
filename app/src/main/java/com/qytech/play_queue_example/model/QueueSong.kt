@@ -8,7 +8,7 @@ data class QueueSong(
     override val segmentId: String,
     override val segmentName: String,
     override val name: String,
-    override val artist: String,
+    override val singerName: String,
     override val durationText: String,
     override val isPlaying: Boolean
 ): IQueueSongUiModel {

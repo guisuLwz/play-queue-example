@@ -158,7 +158,7 @@ private fun QueueSongRow(song: QueueSong, onPlay: (QueueSong) -> Unit) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(song.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    text = "${song.artist} · ${song.segmentName}",
+                    text = "${song.singerName} · ${song.segmentName}",
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodySmall,

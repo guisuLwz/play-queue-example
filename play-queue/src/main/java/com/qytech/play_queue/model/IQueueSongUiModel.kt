@@ -10,7 +10,7 @@ interface IQueueSongUiModel {
     val segmentId: String
     val segmentName: String
     val name: String
-    val artist: String
+    val singerName: String
     val durationText: String
     val isPlaying: Boolean
 }

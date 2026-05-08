@@ -12,7 +12,7 @@ interface INetworkSong {
     val id: String
     val name: String
     val coverUrl: String?
-    val artist: String
+    val singerName: String
     val durationMs: Long
     val playUrl: String?
     val sortOrderInSegment: Int

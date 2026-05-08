@@ -1022,7 +1022,7 @@ abstract class BaseQueueMusicRepository<
         segmentId: String = this.segmentId,
         name: String = this.name,
         coverUrl: String? = this.coverUrl,
-        artist: String = this.artist,
+        artist: String = this.singerName,
         durationMs: Long = this.durationMs,
         playUrl: String? = this.playUrl,
         sortOrderInSegment: Int = this.sortOrderInSegment

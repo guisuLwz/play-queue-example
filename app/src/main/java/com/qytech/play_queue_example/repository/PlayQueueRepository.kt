@@ -80,7 +80,7 @@ class PlayQueueRepository @Inject constructor(
             segmentId = segmentId,
             id = id,
             name = name,
-            artist = artist,
+            singerName = singerName,
             durationMs = durationMs,
             playUrl = playUrl,
             sortOrderInSegment = sortOrderInSegment,
@@ -93,7 +93,7 @@ class PlayQueueRepository @Inject constructor(
         segmentId: String,
         name: String,
         coverUrl: String?,
-        artist: String,
+        singerName: String,
         durationMs: Long,
         playUrl: String?,
         sortOrderInSegment: Int
@@ -103,7 +103,7 @@ class PlayQueueRepository @Inject constructor(
             segmentId = segmentId,
             name = name,
             coverUrl = coverUrl,
-            artist = artist,
+            singerName = singerName,
             durationMs = durationMs,
             playUrl = playUrl,
             sortOrderInSegment = sortOrderInSegment

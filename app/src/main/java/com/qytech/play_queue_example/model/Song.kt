@@ -19,7 +19,7 @@ fun SongSourceEntity.toModel(): Song {
         id = id,
         playlistId = playlistId,
         title = songName,
-        artist = artist,
+        artist = singerName,
         album = album,
         durationSeconds = durationSeconds,
         indexInSegment = indexInSegment,

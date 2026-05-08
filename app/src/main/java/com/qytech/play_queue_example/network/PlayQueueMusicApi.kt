@@ -1,14 +1,11 @@
 package com.qytech.play_queue_example.network
 
-import android.util.Log
 import com.qytech.play_queue.remote.BaseMusicApi
 import com.qytech.play_queue.remote.INetworkPage
-import com.qytech.play_queue_example.room.dao.PlayQueueDao
 import com.qytech.play_queue_example.room.dao.SourceDao
 import kotlinx.coroutines.delay
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.math.log
 import kotlin.math.min
 
 @Singleton
@@ -40,7 +37,7 @@ class PlayQueueMusicApi @Inject constructor(
                         id = entity.id.toString(),
                         name = "${segment.name} Track $number",
                         coverUrl = null,
-                        artist = entity.artist,
+                        singerName = entity.singerName,
                         durationMs = entity.durationSeconds * 1000L,
                         playUrl = "https://example.com/${segment}/${number}.mp3",
                         sortOrderInSegment = entity.indexInSegment

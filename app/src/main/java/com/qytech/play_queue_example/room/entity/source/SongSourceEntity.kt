@@ -9,7 +9,7 @@ data class SongSourceEntity(
     val id: Long,
     val playlistId: Long,
     val songName: String = "",
-    val artist: String = "",
+    val singerName: String = "",
     val album: String = "",
     val durationSeconds: Int,
     val indexInSegment: Int
