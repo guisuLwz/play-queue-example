@@ -12,6 +12,10 @@ interface PlayableQueueSource<S : IQueueSongEntity, SEG : IQueueSegmentEntity> {
         forceRetry: Boolean = false
     ): PlayableSong<S, SEG>?
 
+    suspend fun getSongGlobalPosition(songId: String): Int?
+
+    suspend fun getSongSegmentId(songId: String): String?
+
     suspend fun preloadPlaybackAround(
         globalPosition: Int,
         lookBehindPages: Int = 1,

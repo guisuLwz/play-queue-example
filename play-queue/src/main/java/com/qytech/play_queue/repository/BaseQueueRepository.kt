@@ -852,6 +852,58 @@ abstract class BaseQueueMusicRepository<
         return createQueuePositionMapper(dao.getSegments(), dao.getRefs()).totalSize
     }
 
+    override suspend fun getSongGlobalPosition(songId: String): Int? {
+        return queueMutex.withLock {
+            findSongQueueLocationLocked(songId)?.globalPosition
+        }
+    }
+
+    override suspend fun getSongSegmentId(songId: String): String? {
+        return queueMutex.withLock {
+            findSongQueueLocationLocked(songId)?.segmentId
+        }
+    }
+
+    private suspend fun findSongQueueLocationLocked(songId: String): SongQueueLocation? {
+        val mapper = createQueuePositionMapper(dao.getSegments(), dao.getRefs())
+        if (mapper.totalSize <= 0) return null
+
+        val cachedOffsetsBySegment = dao.getSongsById(songId)
+            .groupBy(
+                keySelector = { song -> song.segmentId },
+                valueTransform = { song -> song.sortOrderInSegment }
+            )
+            .mapValues { (_, offsets) -> offsets.toSet() }
+
+        mapper.rangesFor(0..<mapper.totalSize).forEach { range ->
+            val offsetRange = range.offsetStart..range.offsetEnd
+            if (range.segment.id == songId && 0 in offsetRange) {
+                return SongQueueLocation(
+                    globalPosition = range.globalStart - range.offsetStart,
+                    segmentId = range.segment.id
+                )
+            }
+
+            val matchingOffset = cachedOffsetsBySegment[range.segment.id]
+                ?.asSequence()
+                ?.filter { offset -> offset in offsetRange }
+                ?.minOrNull()
+                ?: return@forEach
+
+            return SongQueueLocation(
+                globalPosition = range.globalStart + (matchingOffset - range.offsetStart),
+                segmentId = range.segment.id
+            )
+        }
+
+        return null
+    }
+
+    private data class SongQueueLocation(
+        val globalPosition: Int,
+        val segmentId: String
+    )
+
     /**
      * 点击播放队列的歌曲播放
      */
