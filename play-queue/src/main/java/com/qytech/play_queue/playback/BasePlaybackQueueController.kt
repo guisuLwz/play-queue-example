@@ -38,7 +38,7 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
                 if (nextPlaying) {
                     queueSource.preloadPlaybackAround(globalPosition)
                     preparePreviousIfNeededLocked(globalPosition)
-                    prepareShuffleNextIfNeededLocked(globalPosition)
+                    prepareNextIfNeededLocked(globalPosition)
                 }
                 current
             } else {
@@ -67,7 +67,7 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
                 if (nextPlaying) {
                     queueSource.preloadPlaybackAround(current.globalPosition)
                     preparePreviousIfNeededLocked(current.globalPosition)
-                    prepareShuffleNextIfNeededLocked(current.globalPosition)
+                    prepareNextIfNeededLocked(current.globalPosition)
                 }
                 current
             }
@@ -136,13 +136,13 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
             val currentPosition = _state.value.currentSong?.globalPosition
             if (currentPosition == null) {
                 clearPreparedPreviousLocked()
-                clearPreparedShuffleNextLocked()
+                clearPreparedNextLocked()
                 return@withLock
             }
 
             queueSource.preloadPlaybackAround(currentPosition)
             preparePreviousIfNeededLocked(currentPosition)
-            prepareShuffleNextIfNeededLocked(currentPosition)
+            prepareNextIfNeededLocked(currentPosition)
         }
     }
 
@@ -199,18 +199,20 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
             )
             queueSource.preloadPlaybackAround(adjustedPosition)
             preparePreviousIfNeededLocked(adjustedPosition)
-            prepareShuffleNextIfNeededLocked(adjustedPosition)
+            prepareNextIfNeededLocked(adjustedPosition)
         }
     }
 
     private suspend fun setPlaybackModeLocked(mode: PlaybackMode) {
         _state.value = _state.value.copy(playbackMode = mode)
-        if (mode == PlaybackMode.Shuffle) {
-            preparePreviousIfNeededLocked(_state.value.currentSong?.globalPosition)
-            prepareShuffleNextIfNeededLocked(_state.value.currentSong?.globalPosition)
-        } else {
-            clearPreparedShuffleNextLocked()
+        val currentPosition = _state.value.currentSong?.globalPosition
+        if (currentPosition == null) {
+            clearPreparedPreviousLocked()
+            clearPreparedNextLocked()
+            return
         }
+        preparePreviousIfNeededLocked(currentPosition)
+        prepareNextIfNeededLocked(currentPosition)
     }
 
     private suspend fun playAtLocked(
@@ -225,7 +227,7 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
         queueSource.preloadPlaybackAround(globalPosition)
         if (shouldPlay) onPreparePlay(playableSong)
         preparePreviousIfNeededLocked(globalPosition)
-        prepareShuffleNextIfNeededLocked(globalPosition)
+        prepareNextIfNeededLocked(globalPosition)
         return playableSong
     }
 
@@ -250,24 +252,12 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
         if (total <= 0) return null
         val current = _state.value.currentSong?.globalPosition
 
-        return when (_state.value.playbackMode) {
-            PlaybackMode.Sequence -> {
-                val next = (current ?: -1) + 1
-                if (next in 0 until total) next else null
-            }
-
-            PlaybackMode.RepeatAll -> {
-                val next = (current ?: -1) + 1
-                if (next < total) next else 0
-            }
-
-            PlaybackMode.RepeatOne -> current ?: 0
-
-            PlaybackMode.Shuffle -> {
-                if (current != null) pushShuffleHistory(current)
-                consumePreparedShuffleNextLocked(total, current)
-            }
+        val next = nextCandidatePositionLocked(total, current) ?: return null
+        if (_state.value.playbackMode == PlaybackMode.Shuffle && current != null) {
+            pushShuffleHistory(current)
         }
+        clearPreparedNextLocked()
+        return next
     }
 
     private suspend fun previousPositionLocked(): Int? {
@@ -393,26 +383,42 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
         }
     }
 
-    private suspend fun prepareShuffleNextIfNeededLocked(current: Int?) {
-        if (_state.value.playbackMode != PlaybackMode.Shuffle) {
-            clearPreparedShuffleNextLocked()
-            return
-        }
+    private fun nextCandidatePositionForPreparationLocked(
+        total: Int,
+        current: Int?
+    ): Int? {
+        if (total <= 0) return null
 
+        return when (_state.value.playbackMode) {
+            PlaybackMode.Sequence -> {
+                val next = (current ?: -1) + 1
+                if (next in 0 until total) next else null
+            }
+
+            PlaybackMode.RepeatAll -> {
+                val next = (current ?: -1) + 1
+                if (next < total) next else 0
+            }
+
+            PlaybackMode.RepeatOne -> current ?: 0
+
+            PlaybackMode.Shuffle -> randomPosition(total, current)
+        }
+    }
+
+    private suspend fun prepareNextIfNeededLocked(current: Int?) {
         val total = queueSource.totalSize()
         if (total <= 0) {
-            clearPreparedShuffleNextLocked()
+            clearPreparedNextLocked()
             return
         }
 
-        val next = randomPosition(total, current)
+        val next = nextCandidatePositionForPreparationLocked(total, current) ?: run {
+            clearPreparedNextLocked()
+            return
+        }
         val playableSong = queueSource.getPlayableSongAt(next) ?: run {
-            clearPreparedShuffleNextLocked()
-            return
-        }
-
-        if (_state.value.playbackMode != PlaybackMode.Shuffle) {
-            clearPreparedShuffleNextLocked()
+            clearPreparedNextLocked()
             return
         }
 
@@ -430,20 +436,11 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
         onPreparedNext(playableSong)
     }
 
-    private fun consumePreparedShuffleNextLocked(total: Int, current: Int?): Int {
-        val prepared = _state.value.preparedNext?.position
-            ?.takeIf { it in 0 until total }
-            ?.takeIf { total <= 1 || it != current }
-
-        clearPreparedShuffleNextLocked()
-        return prepared ?: randomPosition(total, current)
-    }
-
     private fun clearPreparedPreviousLocked() {
         _state.value = _state.value.copy(preparedPrevious = null)
     }
 
-    private fun clearPreparedShuffleNextLocked() {
+    private fun clearPreparedNextLocked() {
         _state.value = _state.value.copy(preparedNext = null)
     }
 
