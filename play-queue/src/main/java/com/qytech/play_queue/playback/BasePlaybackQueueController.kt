@@ -198,10 +198,18 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
     suspend fun applyQueueMutation(
         mutation: suspend () -> QueueMutationResult
     ): QueueMutationResult {
-        return operationMutex.withLock {
-            val result = mutation()
-            applyQueueMutationResultLocked(result)
-            result
+        playerDelegate.onAutoNextBlocked()
+        var nextAfterMutation: PlayableSong<S, SEG>? = null
+
+        return try {
+            operationMutex.withLock {
+                val result = mutation()
+                applyQueueMutationResultLocked(result)
+                nextAfterMutation = _state.value.preparedNext?.song
+                result
+            }
+        } finally {
+            playerDelegate.onAutoNextReleased(nextAfterMutation)
         }
     }
 

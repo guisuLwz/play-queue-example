@@ -40,6 +40,16 @@ class PlaybackQueueController @Inject constructor(
 
         }
 
+        override suspend fun onAutoNextBlocked() {
+
+        }
+
+        override suspend fun onAutoNextReleased(
+            next: PlayableSong<QueueSongEntity, QueueSegmentEntity>?
+        ) {
+
+        }
+
         override suspend fun play() {
 
         }

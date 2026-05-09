@@ -22,6 +22,20 @@ interface PlaybackQueuePlayerDelegate<S : IQueueSongEntity, SEG : IQueueSegmentE
 
     suspend fun onAutoPreparedPrevious()
 
+    /**
+     * Called before a queue mutation that may replace the prepared next item.
+     * The player should hold auto-advance to the old prepared next until onAutoNextReleased.
+     */
+    suspend fun onAutoNextBlocked()
+
+    /**
+     * Called after the queue mutation and next preparation finish.
+     * If playback reached the end while blocked, the player should continue with this next item.
+     */
+    suspend fun onAutoNextReleased(
+        next: PlayableSong<S, SEG>?
+    )
+
     suspend fun play()
 
     suspend fun pause()
