@@ -955,7 +955,7 @@ abstract class BaseQueueMusicRepository<
     )
 
     /**
-     * 点击播放队列的歌曲播放
+     * 通过 globalPosition 获取 playableSong 对象
      */
     override suspend fun getPlayableSongAt(
         globalPosition: Int,
@@ -987,7 +987,9 @@ abstract class BaseQueueMusicRepository<
     }
 
     /**
-     * globalPosition是给看见的播放队列使用的
+     * 预加载页数
+     * @param lookBehindPages 当前globalPosition的前几页
+     * @param lookAheadPages 当前globalPosition的后几页
      */
     override suspend fun preloadPlaybackAround(
         globalPosition: Int,
