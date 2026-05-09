@@ -12,10 +12,10 @@ class PlaybackQueueController @Inject constructor(
     private val playQueueRepository: PlayQueueRepository
 ): BasePlaybackQueueController<QueueSongEntity, QueueSegmentEntity>(
     queueSource = playQueueRepository,
-    onPreparedPrevious = {
+    onPreparedPrevious = { hasPrepared, prev ->
 
     },
-    onPreparedNext = {
+    onPreparedNext = { hasPrepared, next ->
 
     },
     onPreparePlay = {

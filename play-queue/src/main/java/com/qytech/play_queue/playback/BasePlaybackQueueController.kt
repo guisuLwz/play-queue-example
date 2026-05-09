@@ -19,8 +19,8 @@ import kotlin.random.Random
 abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSegmentEntity>(
     private val queueSource: PlayableQueueSource<S, SEG>,
     private val maxShuffleHistory: Int = DEFAULT_MAX_SHUFFLE_HISTORY,
-    private val onPreparedPrevious: suspend (PlayableSong<S, SEG>) -> Unit = {},
-    private val onPreparedNext: suspend (PlayableSong<S, SEG>) -> Unit = {},
+    private val onPreparedPrevious: suspend (Boolean, PlayableSong<S, SEG>) -> Unit = {_, _ ->},
+    private val onPreparedNext: suspend (Boolean, PlayableSong<S, SEG>) -> Unit = {_, _ ->},
     private val onPreparePlay: suspend (PlayableSong<S, SEG>) -> Unit,
     private val onAutoPreparedPrevious: suspend () -> Unit,
 ) {
@@ -413,6 +413,8 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
             return
         }
 
+        onPreparedPrevious(_state.value.preparedPrevious != null, playableSong)
+
         val prepared = PreparedPlaybackItem(
             position = previous,
             song = playableSong
@@ -426,7 +428,6 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
             lookAheadPages = 0
         )
 
-        onPreparedPrevious(playableSong)
     }
 
     /**
@@ -525,6 +526,8 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
             return
         }
 
+        onPreparedNext(_state.value.preparedNext != null, playableSong)
+
         val prepared = PreparedPlaybackItem(
             position = next,
             song = playableSong
@@ -536,7 +539,6 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
             lookBehindPages = 0,
             lookAheadPages = 1
         )
-        onPreparedNext(playableSong)
     }
 
     private fun clearPreparedPreviousLocked() {
