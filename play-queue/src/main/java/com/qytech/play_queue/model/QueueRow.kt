@@ -32,6 +32,8 @@ sealed interface QueueRow {
         override val segmentId: String,
         override val segmentName: String,
         val page: Int,
-        val message: String
+        val title: String = "",
+        val message: String,
+        val canRetry: Boolean = true
     ) : QueueRow
 }

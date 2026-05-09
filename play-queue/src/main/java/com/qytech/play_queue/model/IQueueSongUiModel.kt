@@ -12,5 +12,6 @@ interface IQueueSongUiModel {
     val name: String
     val singerName: String
     val durationText: String
-    val isPlaying: Boolean
+    val isCurrentPlayable: Boolean
+    val isPlayingStatus: Boolean
 }

@@ -132,7 +132,7 @@ private fun QueueSongRow(song: QueueSong, onPlay: (QueueSong) -> Unit) {
             .clickable { onPlay(song) },
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (song.isPlaying) Color(0xFFE2F1EB) else Color.White
+            containerColor = if (song.isCurrentPlayable) Color(0xFFE2F1EB) else Color.White
         )
     ) {
         Row(
@@ -145,12 +145,12 @@ private fun QueueSongRow(song: QueueSong, onPlay: (QueueSong) -> Unit) {
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(if (song.isPlaying) Color(0xFF176B63) else Color(0xFFECEAE0)),
+                    .background(if (song.isCurrentPlayable) Color(0xFF176B63) else Color(0xFFECEAE0)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = if (song.isPlaying) "II" else ">",
-                    color = if (song.isPlaying) Color.White else Color(0xFF3B3B36),
+                    text = if (song.isPlayingStatus) "II" else ">",
+                    color = if (song.isCurrentPlayable) Color.White else Color(0xFF3B3B36),
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -214,10 +214,17 @@ private fun QueueErrorRow(row: QueueRow.ErrorRow, onRetry: (String, Int) -> Unit
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    "${row.segmentName} 第 ${row.page} 页加载失败",
-                    fontWeight = FontWeight.SemiBold
-                )
+                if (row.title.isNotBlank()) {
+                    Text(
+                        row.title,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                } else {
+                    Text(
+                        "${row.segmentName} 第 ${row.page} 页加载失败",
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
                 Text(
                     row.message,
                     maxLines = 1,
@@ -225,8 +232,10 @@ private fun QueueErrorRow(row: QueueRow.ErrorRow, onRetry: (String, Int) -> Unit
                     color = Color(0xFF7D392F)
                 )
             }
-            Button(onClick = { onRetry(row.segmentId, row.page) }) {
-                Text("重试")
+            if (row.canRetry) {
+                Button(onClick = { onRetry(row.segmentId, row.page) }) {
+                    Text("重试")
+                }
             }
         }
     }

@@ -56,8 +56,7 @@ class PlaylistSongsViewModel @Inject constructor(
                 currentPlayingSong = state.currentSong?.let { current ->
                     current.song.toUiModel(
                         globalPosition = current.globalPosition,
-                        playlist = current.location.segment,
-                        isPlaying = state.isPlaying
+                        playlist = current.location.segment
                     )
                 },
                 isPlaying = state.isPlaying,

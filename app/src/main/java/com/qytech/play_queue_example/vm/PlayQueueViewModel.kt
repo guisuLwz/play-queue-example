@@ -49,9 +49,7 @@ class PlayQueueViewModel @Inject constructor(
         visibleWindow
     ) { snapshot, playbackState, window ->
         snapshot.toUiState(
-            playingSong = playbackState.currentSong?.toUiModel(
-                isPlaying = playbackState.isPlaying
-            ),
+            playingSong = playbackState.currentSong?.toUiModel(),
             playing = playbackState.isPlaying,
             mode = playbackState.playbackMode,
             window = window,
@@ -150,7 +148,8 @@ class PlayQueueViewModel @Inject constructor(
                 song.toUiModel(
                     globalPosition = globalPosition,
                     playlist = segment,
-                    isPlaying = song.id == playingSongId && playing
+                    isCurrentPlayable = song.id == playingSongId,
+                    isPlayingStatus = song.id == playingSongId && playing
                 )
             )
         }
@@ -168,6 +167,18 @@ class PlayQueueViewModel @Inject constructor(
             )
         }
 
+        if (pageState?.isCached == true) {
+            return QueueRow.ErrorRow(
+                globalPosition = globalPosition,
+                segmentId = segment.id,
+                segmentName = segment.name,
+                page = page,
+                title = "${segment.name} 第${located.offsetInSegment + 1}首无法播放",
+                message = "文件损坏无法播放",
+                canRetry = false
+            )
+        }
+
         return QueueRow.PlaceholderRow(
             globalPosition = globalPosition,
             segmentId = segment.id,
@@ -179,12 +190,9 @@ class PlayQueueViewModel @Inject constructor(
         )
     }
 
-    private fun PlayableSong<QueueSongEntity, QueueSegmentEntity>.toUiModel(
-        isPlaying: Boolean
-    ) = song.toUiModel(
+    private fun PlayableSong<QueueSongEntity, QueueSegmentEntity>.toUiModel() = song.toUiModel(
         globalPosition = globalPosition,
         playlist = location.segment,
-        isPlaying = isPlaying
     )
 
 

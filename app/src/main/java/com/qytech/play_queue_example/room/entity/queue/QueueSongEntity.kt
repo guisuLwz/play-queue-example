@@ -24,7 +24,8 @@ data class QueueSongEntity(
 fun QueueSongEntity.toUiModel(
     globalPosition: Int,
     playlist: QueueSegmentEntity,
-    isPlaying: Boolean
+    isCurrentPlayable: Boolean = false,
+    isPlayingStatus: Boolean = false
 ) = QueueSong(
     globalPosition = globalPosition,
     songId = id,
@@ -33,7 +34,8 @@ fun QueueSongEntity.toUiModel(
     name = name,
     singerName = singerName,
     durationText = durationMs.toDurationText(),
-    isPlaying = isPlaying
+    isCurrentPlayable = isCurrentPlayable,
+    isPlayingStatus = isPlayingStatus
 )
 
 private fun Long.toDurationText(): String {

@@ -10,6 +10,7 @@ data class QueueSong(
     override val name: String,
     override val singerName: String,
     override val durationText: String,
-    override val isPlaying: Boolean
+    override val isCurrentPlayable: Boolean,
+    override val isPlayingStatus: Boolean
 ): IQueueSongUiModel {
 }

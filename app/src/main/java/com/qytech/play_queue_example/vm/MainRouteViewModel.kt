@@ -25,7 +25,7 @@ class MainRouteViewModel @Inject constructor(
     val playbackState = playbackQueueController.state
         .map { state ->
             PlaybackUiState(
-                currentPlayingSong = state.currentSong?.toUiModel(state.isPlaying),
+                currentPlayingSong = state.currentSong?.toUiModel(),
                 isPlaying = state.isPlaying,
                 playbackMode = state.playbackMode,
                 hasPrevious = playbackQueueController.hasPrevious(),
@@ -63,11 +63,8 @@ class MainRouteViewModel @Inject constructor(
         }
     }
 
-    private fun PlayableSong<QueueSongEntity, QueueSegmentEntity>.toUiModel(
-        isPlaying: Boolean
-    ) = song.toUiModel(
+    private fun PlayableSong<QueueSongEntity, QueueSegmentEntity>.toUiModel() = song.toUiModel(
         globalPosition = globalPosition,
         playlist = location.segment,
-        isPlaying = isPlaying
     )
 }
