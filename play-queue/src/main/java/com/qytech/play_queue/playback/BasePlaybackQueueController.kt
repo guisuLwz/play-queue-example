@@ -33,7 +33,7 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
         return operationMutex.withLock {
             val globalPosition = queueSource.getSongGlobalPosition(songId) ?: return@withLock
             if (songId == _state.value.currentSong?.song?.id) return@withLock
-            val playableSong = queueSource.getPlayableSongAt(globalPosition)
+            val playableSong = queueSource.getPlayableSongAt(globalPosition) ?: return@withLock
             _state.value = _state.value.copy(
                 currentSong = playableSong,
                 isPlaying = true
@@ -41,7 +41,7 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
 
 //            preparePreviousIfNeededLocked(globalPosition)
             playerDelegate.onAutoPreparedPrevious()
-            prepareNextIfNeededLocked(globalPosition)
+            prepareNextIfNeededLocked(playableSong.globalPosition)
         }
     }
 
@@ -195,12 +195,71 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
         }
     }
 
-    suspend fun applyQueueMutationResult(result: QueueMutationResult) {
+    suspend fun applyQueueMutation(
+        mutation: suspend () -> QueueMutationResult
+    ): QueueMutationResult {
+        return operationMutex.withLock {
+            val result = mutation()
+            applyQueueMutationResultLocked(result)
+            result
+        }
+    }
+
+    private suspend fun applyQueueMutationResultLocked(result: QueueMutationResult) {
         val autoPlayPosition = result.autoPlayPosition
         if (autoPlayPosition != null) {
-            playAt(autoPlayPosition, shouldPlay = true)
+            playAtLocked(autoPlayPosition, shouldPlay = true)
         } else if (result.inserted) {
-            refreshPrepared()
+            refreshCurrentAndPreparedAfterMutationLocked(result.firstInsertedPosition)
+        }
+    }
+
+    private suspend fun refreshCurrentAndPreparedAfterMutationLocked(firstInsertedPosition: Int?) {
+        val current = _state.value.currentSong
+        if (current == null) {
+            clearPreparedPreviousLocked()
+            clearPreparedNextLocked()
+            return
+        }
+
+        val refreshedPosition = queueSource.getSongGlobalPosition(current.song.id)
+        if (refreshedPosition == null) {
+            clearPlaybackLocked(incrementRevision = true)
+            return
+        }
+
+        val refreshedCurrent = queueSource.getPlayableSongAt(refreshedPosition)
+        if (refreshedCurrent == null || refreshedCurrent.song.id != current.song.id) {
+            clearPlaybackLocked(incrementRevision = true)
+            return
+        }
+
+        _state.value = _state.value.copy(
+            currentSong = refreshedCurrent,
+            revision = _state.value.revision + 1
+        )
+        queueSource.preloadPlaybackAround(refreshedCurrent.globalPosition)
+        preparePreviousIfNeededLocked(refreshedCurrent.globalPosition)
+        val preparedInserted = shouldPrepareInsertedAsNextLocked() &&
+                prepareNextAtPositionIfPlayableLocked(
+                    position = firstInsertedPosition,
+                    current = refreshedCurrent.globalPosition
+                )
+        if (!preparedInserted) {
+            prepareNextIfNeededLocked(
+                current = refreshedCurrent.globalPosition,
+                reusePreparedNext = false
+            )
+        }
+    }
+
+    private fun shouldPrepareInsertedAsNextLocked(): Boolean {
+        return when (_state.value.playbackMode) {
+            PlaybackMode.Sequence,
+            PlaybackMode.RepeatAll -> true
+
+            PlaybackMode.RepeatOne,
+            PlaybackMode.Shuffle -> false
         }
     }
 
@@ -307,6 +366,13 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
         val total = queueSource.totalSize()
         if (total <= 0) return null
         val current = _state.value.currentSong?.globalPosition
+        preparedNextIfStillValidLocked()?.let { preparedNext ->
+            if (_state.value.playbackMode == PlaybackMode.Shuffle && current != null) {
+                pushShuffleHistory(current)
+            }
+            clearPreparedNextLocked()
+            return preparedNext
+        }
 
         val playableSong = when (_state.value.playbackMode) {
             PlaybackMode.Sequence -> queueSource.findNextPlayableSong(current, wrap = false)
@@ -325,6 +391,23 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
         }
         clearPreparedNextLocked()
         return playableSong
+    }
+
+    private suspend fun preparedNextIfStillValidLocked(): PlayableSong<S, SEG>? {
+        val preparedNext = _state.value.preparedNext?.song ?: return null
+        val refreshed = queueSource.getPlayableSongAt(preparedNext.globalPosition)
+        if (refreshed == null || !refreshed.isSameQueueItem(preparedNext)) {
+            clearPreparedNextLocked()
+            return null
+        }
+        return refreshed
+    }
+
+    private fun PlayableSong<S, SEG>.isSameQueueItem(other: PlayableSong<S, SEG>): Boolean {
+        return globalPosition == other.globalPosition &&
+                song.id == other.song.id &&
+                location.segment.id == other.location.segment.id &&
+                location.offsetInSegment == other.location.offsetInSegment
     }
 
     private suspend fun previousPlayableSongLocked(): PlayableSong<S, SEG>? {
@@ -493,8 +576,11 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
         }
     }
 
-    private suspend fun prepareNextIfNeededLocked(current: Int?) {
-        val playableSong = nextPlayableSongForPreparationLocked(current) ?: run {
+    private suspend fun prepareNextIfNeededLocked(
+        current: Int?,
+        reusePreparedNext: Boolean = true
+    ) {
+        val playableSong = nextPlayableSongForPreparationLocked(current, reusePreparedNext) ?: run {
             clearPreparedNextLocked()
             return
         }
@@ -514,7 +600,35 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
         )
     }
 
-    private suspend fun nextPlayableSongForPreparationLocked(current: Int?): PlayableSong<S, SEG>? {
+    private suspend fun prepareNextAtPositionIfPlayableLocked(
+        position: Int?,
+        current: Int
+    ): Boolean {
+        val total = queueSource.totalSize()
+        if (position == null || position !in 0 until total || position == current) {
+            return false
+        }
+
+        val playableSong = queueSource.getPlayableSongAt(position) ?: return false
+        playerDelegate.onPreparedNext(_state.value.preparedNext != null, playableSong)
+        _state.value = _state.value.copy(
+            preparedNext = PreparedPlaybackItem(
+                position = playableSong.globalPosition,
+                song = playableSong
+            )
+        )
+        queueSource.preloadPlaybackAround(
+            globalPosition = playableSong.globalPosition,
+            lookBehindPages = 0,
+            lookAheadPages = 1
+        )
+        return true
+    }
+
+    private suspend fun nextPlayableSongForPreparationLocked(
+        current: Int?,
+        reusePreparedNext: Boolean
+    ): PlayableSong<S, SEG>? {
         val total = queueSource.totalSize()
         if (total <= 0) return null
 
@@ -525,9 +639,13 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
                 ?: queueSource.findNextPlayableSong(current, wrap = true)
 
             PlaybackMode.Shuffle -> {
-                val preparedPosition = _state.value.preparedNext?.position
-                    ?.takeIf { it in 0 until total }
-                    ?.takeIf { total <= 1 || it != current }
+                val preparedPosition = if (reusePreparedNext) {
+                    _state.value.preparedNext?.position
+                        ?.takeIf { it in 0 until total }
+                        ?.takeIf { total <= 1 || it != current }
+                } else {
+                    null
+                }
 
                 if (preparedPosition != null) {
                     queueSource.getPlayableSongAt(preparedPosition)?.let { return it }

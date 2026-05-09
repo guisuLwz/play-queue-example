@@ -81,21 +81,22 @@ class PlaylistSongsViewModel @Inject constructor(
                 return@launch
             }
 
-            val result = playQueueRepository.playSegmentFromOffset(
-                segment = QueueSegmentEntity(
-                    id = playlist.id.toString(),
-                    name = playlist.name,
-                    coverUrl = null,
-                    loadedCount = 0,
-                    totalCount = playlist.totalCount,
-                    pageSize = PLAY_QUEUE_PAGE_SIZE,
-                    hasMore = true,
-                    lastError = null,
-                    type = "playlist"
-                ),
-                offsetInSegment = song.indexInSegment
-            )
-            playbackQueueController.applyQueueMutationResult(result)
+            playbackQueueController.applyQueueMutation {
+                playQueueRepository.playSegmentFromOffset(
+                    segment = QueueSegmentEntity(
+                        id = playlist.id.toString(),
+                        name = playlist.name,
+                        coverUrl = null,
+                        loadedCount = 0,
+                        totalCount = playlist.totalCount,
+                        pageSize = PLAY_QUEUE_PAGE_SIZE,
+                        hasMore = true,
+                        lastError = null,
+                        type = "playlist"
+                    ),
+                    offsetInSegment = song.indexInSegment
+                )
+            }
             playQueueRepository.preloadQueueWindow(window = playQueueRepository.visibleWindow.value)
         }
     }
@@ -112,15 +113,16 @@ class PlaylistSongsViewModel @Inject constructor(
                 playUrl = null,
                 sortOrderInSegment = 0
             )
-            val result = when (action) {
-                QueueAction.PlayNow -> playQueueRepository.playSongNow(queueSong)
-                QueueAction.InsertNext -> playQueueRepository.insertSongToNext(
-                    song = queueSong,
-                    currentGlobalPosition = playbackQueueController.state.value.currentSong?.globalPosition
-                )
-                QueueAction.AppendToEnd -> playQueueRepository.addSongToTail(queueSong)
+            playbackQueueController.applyQueueMutation {
+                when (action) {
+                    QueueAction.PlayNow -> playQueueRepository.playSongNow(queueSong)
+                    QueueAction.InsertNext -> playQueueRepository.insertSongToNext(
+                        song = queueSong,
+                        currentGlobalPosition = playbackQueueController.state.value.currentSong?.globalPosition
+                    )
+                    QueueAction.AppendToEnd -> playQueueRepository.addSongToTail(queueSong)
+                }
             }
-            playbackQueueController.applyQueueMutationResult(result)
             playQueueRepository.preloadQueueWindow(window = playQueueRepository.visibleWindow.value)
         }
     }

@@ -41,57 +41,58 @@ class PlaylistsViewModel @Inject constructor(
 
     fun onAction(playlist: Playlist, action: QueueAction) {
         viewModelScope.launch(Dispatchers.IO) {
-            val result = when (action) {
-                QueueAction.PlayNow -> {
-                    playQueueRepository.playSegmentNow(
-                        segment = QueueSegmentEntity(
-                            id = playlist.id.toString(),
-                            name = playlist.name,
-                            coverUrl = null,
-                            loadedCount = 0,
-                            totalCount = playlist.totalCount,
-                            pageSize = PLAY_QUEUE_PAGE_SIZE,
-                            hasMore = true,
-                            lastError = null,
-                            type = "playlist"
+            playbackQueueController.applyQueueMutation {
+                when (action) {
+                    QueueAction.PlayNow -> {
+                        playQueueRepository.playSegmentNow(
+                            segment = QueueSegmentEntity(
+                                id = playlist.id.toString(),
+                                name = playlist.name,
+                                coverUrl = null,
+                                loadedCount = 0,
+                                totalCount = playlist.totalCount,
+                                pageSize = PLAY_QUEUE_PAGE_SIZE,
+                                hasMore = true,
+                                lastError = null,
+                                type = "playlist"
+                            )
                         )
-                    )
-                }
+                    }
 
-                QueueAction.InsertNext -> {
-                    playQueueRepository.insertSegmentToNext(
-                        segment = QueueSegmentEntity(
-                            id = playlist.id.toString(),
-                            name = playlist.name,
-                            coverUrl = null,
-                            loadedCount = 0,
-                            totalCount = playlist.totalCount,
-                            pageSize = PLAY_QUEUE_PAGE_SIZE,
-                            hasMore = true,
-                            lastError = null,
-                            type = "playlist"
-                        ),
-                        currentGlobalPosition = playbackQueueController.state.value.currentSong?.globalPosition
-                    )
-                }
-
-                QueueAction.AppendToEnd -> {
-                    playQueueRepository.addSegmentToTail(
-                        segment = QueueSegmentEntity(
-                            id = playlist.id.toString(),
-                            name = playlist.name,
-                            coverUrl = null,
-                            loadedCount = 0,
-                            totalCount = playlist.totalCount,
-                            pageSize = PLAY_QUEUE_PAGE_SIZE,
-                            hasMore = true,
-                            lastError = null,
-                            type = "playlist"
+                    QueueAction.InsertNext -> {
+                        playQueueRepository.insertSegmentToNext(
+                            segment = QueueSegmentEntity(
+                                id = playlist.id.toString(),
+                                name = playlist.name,
+                                coverUrl = null,
+                                loadedCount = 0,
+                                totalCount = playlist.totalCount,
+                                pageSize = PLAY_QUEUE_PAGE_SIZE,
+                                hasMore = true,
+                                lastError = null,
+                                type = "playlist"
+                            ),
+                            currentGlobalPosition = playbackQueueController.state.value.currentSong?.globalPosition
                         )
-                    )
+                    }
+
+                    QueueAction.AppendToEnd -> {
+                        playQueueRepository.addSegmentToTail(
+                            segment = QueueSegmentEntity(
+                                id = playlist.id.toString(),
+                                name = playlist.name,
+                                coverUrl = null,
+                                loadedCount = 0,
+                                totalCount = playlist.totalCount,
+                                pageSize = PLAY_QUEUE_PAGE_SIZE,
+                                hasMore = true,
+                                lastError = null,
+                                type = "playlist"
+                            )
+                        )
+                    }
                 }
             }
-            playbackQueueController.applyQueueMutationResult(result)
             playQueueRepository.preloadQueueWindow(window = playQueueRepository.visibleWindow.value)
         }
     }
