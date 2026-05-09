@@ -1,6 +1,8 @@
 package com.qytech.play_queue_example.player
 
+import com.qytech.play_queue.data.PlayableSong
 import com.qytech.play_queue.playback.BasePlaybackQueueController
+import com.qytech.play_queue.playback.intf.PlaybackQueuePlayerDelegate
 import com.qytech.play_queue_example.repository.PlayQueueRepository
 import com.qytech.play_queue_example.room.entity.queue.QueueSegmentEntity
 import com.qytech.play_queue_example.room.entity.queue.QueueSongEntity
@@ -12,18 +14,39 @@ class PlaybackQueueController @Inject constructor(
     private val playQueueRepository: PlayQueueRepository
 ): BasePlaybackQueueController<QueueSongEntity, QueueSegmentEntity>(
     queueSource = playQueueRepository,
-    onPreparedPrevious = { hasPrepared, prev ->
-
-    },
-    onPreparedNext = { hasPrepared, next ->
-
-    },
-    onPreparePlay = {
-
-    },
-    onAutoPreparedPrevious = {
-
-    }
 ) {
+    override fun getPlayerDelegate() = object : PlaybackQueuePlayerDelegate<QueueSongEntity, QueueSegmentEntity> {
+        override suspend fun onPreparedPrevious(
+            hasPrepared: Boolean,
+            previous: PlayableSong<QueueSongEntity, QueueSegmentEntity>
+        ) {
+
+        }
+
+        override suspend fun onPreparedNext(
+            hasPrepared: Boolean,
+            next: PlayableSong<QueueSongEntity, QueueSegmentEntity>
+        ) {
+
+        }
+
+        override suspend fun onPreparePlay(
+            current: PlayableSong<QueueSongEntity, QueueSegmentEntity>
+        ) {
+
+        }
+
+        override suspend fun onAutoPreparedPrevious() {
+
+        }
+
+        override suspend fun play() {
+
+        }
+
+        override suspend fun pause() {
+
+        }
+    }
 
 }

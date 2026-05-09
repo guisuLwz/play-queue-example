@@ -9,6 +9,7 @@ import com.qytech.play_queue.data.PreparedPlaybackItem
 import com.qytech.play_queue.data.QueueMutationResult
 import com.qytech.play_queue.data.QueueRemovalResult
 import com.qytech.play_queue.playback.intf.PlayableQueueSource
+import com.qytech.play_queue.playback.intf.PlaybackQueuePlayerDelegate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,16 +20,14 @@ import kotlin.random.Random
 abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSegmentEntity>(
     private val queueSource: PlayableQueueSource<S, SEG>,
     private val maxShuffleHistory: Int = DEFAULT_MAX_SHUFFLE_HISTORY,
-    private val onPreparedPrevious: suspend (Boolean, PlayableSong<S, SEG>) -> Unit = {_, _ ->},
-    private val onPreparedNext: suspend (Boolean, PlayableSong<S, SEG>) -> Unit = {_, _ ->},
-    private val onPreparePlay: suspend (PlayableSong<S, SEG>) -> Unit,
-    private val onAutoPreparedPrevious: suspend () -> Unit,
 ) {
     private val operationMutex = Mutex()
     private val shuffleBackStack = ArrayDeque<Int>()
     private val _state = MutableStateFlow(PlaybackQueueState<S, SEG>())
 
     val state: StateFlow<PlaybackQueueState<S, SEG>> = _state.asStateFlow()
+
+    private val playerDelegate: PlaybackQueuePlayerDelegate<S, SEG> = getPlayerDelegate()
 
     suspend fun autoPlayNext(songId: String) {
         return operationMutex.withLock {
@@ -41,7 +40,7 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
             )
 
 //            preparePreviousIfNeededLocked(globalPosition)
-            onAutoPreparedPrevious()
+            playerDelegate.onAutoPreparedPrevious()
             prepareNextIfNeededLocked(globalPosition)
         }
     }
@@ -50,14 +49,7 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
         return operationMutex.withLock {
             val current = _state.value.currentSong
             if (current?.globalPosition == globalPosition) {
-                val nextPlaying = !_state.value.isPlaying
-                setPlayingLocked(nextPlaying)
-                if (nextPlaying) {
-                    queueSource.preloadPlaybackAround(globalPosition)
-                    preparePreviousIfNeededLocked(globalPosition)
-                    prepareNextIfNeededLocked(globalPosition)
-                }
-                current
+                togglePlayPauseLocked()
             } else {
                 playAtLocked(globalPosition, shouldPlay = true)
             }
@@ -75,19 +67,22 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
 
     suspend fun togglePlayPause(): PlayableSong<S, SEG>? {
         return operationMutex.withLock {
-            val current = _state.value.currentSong
-            if (current == null) {
-                playAtLocked(globalPosition = 0, shouldPlay = true)
+            togglePlayPauseLocked()
+        }
+    }
+
+    private suspend fun togglePlayPauseLocked(): PlayableSong<S, SEG>? {
+        val current = _state.value.currentSong
+        return if (current == null) {
+            null
+        } else {
+            val nextPlaying = !_state.value.isPlaying
+            if (nextPlaying) {
+                playLocked(current.globalPosition)
             } else {
-                val nextPlaying = !_state.value.isPlaying
-                setPlayingLocked(nextPlaying)
-                if (nextPlaying) {
-                    queueSource.preloadPlaybackAround(current.globalPosition)
-                    preparePreviousIfNeededLocked(current.globalPosition)
-                    prepareNextIfNeededLocked(current.globalPosition)
-                }
-                current
+                pauseLocked()
             }
+            current
         }
     }
 
@@ -97,15 +92,18 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
             if (current == null) {
                 null
             } else {
-                val nextPlaying = !_state.value.isPlaying
-                if (!nextPlaying) return null
-                setPlayingLocked(true)
-                queueSource.preloadPlaybackAround(current.globalPosition)
-                preparePreviousIfNeededLocked(current.globalPosition)
-                prepareNextIfNeededLocked(current.globalPosition)
+                playLocked(current.globalPosition)
                 current
             }
         }
+    }
+
+    private suspend fun playLocked(currentGlobalPosition: Int) {
+        setPlayingLocked(true)
+        playerDelegate.play()
+        queueSource.preloadPlaybackAround(currentGlobalPosition)
+        preparePreviousIfNeededLocked(currentGlobalPosition)
+        prepareNextIfNeededLocked(currentGlobalPosition)
     }
 
     suspend fun pause(): PlayableSong<S, SEG>? {
@@ -114,15 +112,15 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
             if (current == null) {
                 null
             } else {
-                val nextPlaying = !_state.value.isPlaying
-                if (nextPlaying) return null
-                setPlayingLocked(false)
-                queueSource.preloadPlaybackAround(current.globalPosition)
-                preparePreviousIfNeededLocked(current.globalPosition)
-                prepareNextIfNeededLocked(current.globalPosition)
+                pauseLocked()
                 current
             }
         }
+    }
+
+    private suspend fun pauseLocked() {
+        setPlayingLocked(false)
+        playerDelegate.pause()
     }
 
     suspend fun previous(): PlayableSong<S, SEG>? {
@@ -283,7 +281,7 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
             isPlaying = shouldPlay
         )
         queueSource.preloadPlaybackAround(playableSong.globalPosition)
-        if (shouldPlay) onPreparePlay(playableSong)
+        if (shouldPlay) playerDelegate.onPreparePlay(playableSong)
         preparePreviousIfNeededLocked(playableSong.globalPosition)
         prepareNextIfNeededLocked(playableSong.globalPosition)
         return playableSong
@@ -402,7 +400,7 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
             return
         }
 
-        onPreparedPrevious(_state.value.preparedPrevious != null, playableSong)
+        playerDelegate.onPreparedPrevious(_state.value.preparedPrevious != null, playableSong)
 
         val prepared = PreparedPlaybackItem(
             position = playableSong.globalPosition,
@@ -501,7 +499,7 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
             return
         }
 
-        onPreparedNext(_state.value.preparedNext != null, playableSong)
+        playerDelegate.onPreparedNext(_state.value.preparedNext != null, playableSong)
 
         val prepared = PreparedPlaybackItem(
             position = playableSong.globalPosition,
@@ -560,6 +558,8 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
     private fun popShuffleHistory(): Int? {
         return if (shuffleBackStack.isEmpty()) null else shuffleBackStack.removeLast()
     }
+
+    abstract fun getPlayerDelegate(): PlaybackQueuePlayerDelegate<S, SEG>
 
     companion object {
         const val DEFAULT_MAX_SHUFFLE_HISTORY: Int = 10_000
