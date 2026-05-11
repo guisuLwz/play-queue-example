@@ -38,7 +38,9 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
                 currentSong = playableSong,
                 isPlaying = true
             )
+            queueSource.setCurrentPlayableSong(playableSong)
 
+            queueSource.preloadPlaybackAround(playableSong.globalPosition)
 //            preparePreviousIfNeededLocked(globalPosition)
             playerDelegate.onAutoPreparedPrevious()
             prepareNextIfNeededLocked(playableSong.globalPosition)
@@ -216,6 +218,7 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
     private suspend fun applyQueueMutationResultLocked(result: QueueMutationResult) {
         val autoPlayPosition = result.autoPlayPosition
         if (autoPlayPosition != null) {
+            queueSource.setCurrentPlayableSong(null)
             playAtLocked(autoPlayPosition, shouldPlay = true)
         } else if (result.inserted) {
             refreshCurrentAndPreparedAfterMutationLocked(result.firstInsertedPosition)
@@ -246,6 +249,7 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
             currentSong = refreshedCurrent,
             revision = _state.value.revision + 1
         )
+        queueSource.setCurrentPlayableSong(refreshedCurrent)
         queueSource.preloadPlaybackAround(refreshedCurrent.globalPosition)
         preparePreviousIfNeededLocked(refreshedCurrent.globalPosition)
         val preparedInserted = shouldPrepareInsertedAsNextLocked() &&
@@ -313,6 +317,7 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
                 currentSong = refreshedCurrent,
                 revision = _state.value.revision + 1
             )
+            queueSource.setCurrentPlayableSong(refreshedCurrent)
             queueSource.preloadPlaybackAround(adjustedPosition)
             preparePreviousIfNeededLocked(adjustedPosition)
             prepareNextIfNeededLocked(adjustedPosition)
@@ -347,6 +352,7 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
             currentSong = playableSong,
             isPlaying = shouldPlay
         )
+        queueSource.setCurrentPlayableSong(playableSong)
         queueSource.preloadPlaybackAround(playableSong.globalPosition)
         preparePreviousIfNeededLocked(playableSong.globalPosition)
         prepareNextIfNeededLocked(playableSong.globalPosition)
@@ -361,6 +367,7 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
     private fun clearPlaybackLocked(incrementRevision: Boolean = false) {
         shuffleBackStack.clear()
         val currentState = _state.value
+        queueSource.setCurrentPlayableSong(null)
         _state.value = currentState.copy(
             currentSong = null,
             isPlaying = false,

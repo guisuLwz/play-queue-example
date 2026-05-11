@@ -66,6 +66,19 @@ abstract class BaseQueueMusicRepository<
     private val loadMutex = Mutex()
     private val queueMutex = Mutex()
     private val loadingPageKeys = MutableStateFlow<Set<PageKey>>(emptySet())
+    private val protectedPlayableSong = MutableStateFlow<ProtectedPlayableSong?>(null)
+
+    override fun setCurrentPlayableSong(song: PlayableSong<S, SEG>?) {
+        protectedPlayableSong.value = song?.let { playableSong ->
+            ProtectedPlayableSong(
+                songId = playableSong.song.id,
+                positionKey = PositionKey(
+                    segmentId = playableSong.location.segment.id,
+                    sortOrderInSegment = playableSong.location.offsetInSegment
+                )
+            )
+        }
+    }
 
     fun resetVisibleWindow() {
         _visibleWindow.update {
@@ -301,6 +314,10 @@ abstract class BaseQueueMusicRepository<
      */
     override suspend fun addSongToTail(song: S): QueueMutationResult {
         return queueMutex.withLock {
+            if (protectedPlayableSong.value?.songId == song.id) {
+                return@withLock QueueMutationResult.Noop
+            }
+
             val segment = song.toSingleSongSegment()
             val singleQueueSong = song.copyTo(
                 segmentId = song.id,
@@ -412,6 +429,10 @@ abstract class BaseQueueMusicRepository<
         currentGlobalPosition: Int?
     ): QueueMutationResult {
         return queueMutex.withLock {
+            if (protectedPlayableSong.value?.songId == song.id) {
+                return@withLock QueueMutationResult.Noop
+            }
+
             val segment = song.toSingleSongSegment()
             val singleQueueSong = song.copyTo(
                 segmentId = song.id,
@@ -665,22 +686,36 @@ abstract class BaseQueueMusicRepository<
         )
     }
 
-    private fun List<S>.toDedupPlan(): SongPositionDedupPlan {
+    private fun List<S>.toDedupPlan(
+        protectedSong: ProtectedPlayableSong? = protectedPlayableSong.value
+    ): SongPositionDedupPlan {
+        val hasProtectedDuplicate = protectedSong != null &&
+                any { song -> song.id == protectedSong.songId }
         val latestBySongId = LinkedHashMap<String, S>()
         forEach { song ->
+            if (
+                protectedSong != null &&
+                song.id == protectedSong.songId &&
+                song.positionKey() != protectedSong.positionKey
+            ) {
+                return@forEach
+            }
             val current = latestBySongId[song.id]
             if (current == null || song.sortOrderInSegment >= current.sortOrderInSegment) {
                 latestBySongId[song.id] = song
             }
         }
 
-        val positionsToKeep = latestBySongId.values.toList().toPositionKeys()
+        val positionsToCache = latestBySongId.values.toList().toPositionKeys()
+        val positionsToKeep = buildSet {
+            addAll(positionsToCache)
+            if (protectedSong != null && hasProtectedDuplicate) {
+                add(protectedSong.positionKey)
+            }
+        }
         val offsetsToRemoveBySegment = asSequence()
             .filter { song ->
-                PositionKey(
-                    segmentId = song.segmentId,
-                    sortOrderInSegment = song.sortOrderInSegment
-                ) !in positionsToKeep
+                song.positionKey() !in positionsToCache
             }
             .groupBy(
                 keySelector = { song -> song.segmentId },
@@ -690,6 +725,7 @@ abstract class BaseQueueMusicRepository<
 
         return SongPositionDedupPlan(
             positionsToKeep = positionsToKeep,
+            positionsToCache = positionsToCache,
             offsetsToRemoveBySegment = offsetsToRemoveBySegment
         )
     }
@@ -757,17 +793,25 @@ abstract class BaseQueueMusicRepository<
     }
 
     private fun List<S>.toPositionKeys(): Set<PositionKey> {
-        return map { song ->
-            PositionKey(
-                segmentId = song.segmentId,
-                sortOrderInSegment = song.sortOrderInSegment
-            )
-        }.toSet()
+        return map { song -> song.positionKey() }.toSet()
+    }
+
+    private fun S.positionKey(): PositionKey {
+        return PositionKey(
+            segmentId = segmentId,
+            sortOrderInSegment = sortOrderInSegment
+        )
     }
 
     private data class SongPositionDedupPlan(
         val positionsToKeep: Set<PositionKey>,
+        val positionsToCache: Set<PositionKey>,
         val offsetsToRemoveBySegment: Map<String, Set<Int>>
+    )
+
+    private data class ProtectedPlayableSong(
+        val songId: String,
+        val positionKey: PositionKey
     )
 
     private fun adjustedInsertPositionAfterRemoval(
@@ -812,14 +856,20 @@ abstract class BaseQueueMusicRepository<
         return queueSegment
     }
 
-    private suspend fun deduplicateQueueByLoadedSongs(songs: List<S>) {
+    private suspend fun deduplicateQueueByLoadedSongs(
+        songs: List<S>,
+        plan: SongPositionDedupPlan = songs.toDedupPlan()
+    ) {
         if (songs.isEmpty()) return
 
         queueMutex.withLock {
             val refs = dao.getRefs()
             val deduplicatedRefs = removeExistingQueuePositionsByLoadedSongs(
                 refs = refs,
-                loadedSongs = songs
+                loadedSongs = songs,
+                positionsToKeep = plan.positionsToKeep,
+                extraSongIds = emptySet(),
+                loadedOffsetsToRemoveBySegment = plan.offsetsToRemoveBySegment
             )
             if (deduplicatedRefs.removedGlobalRanges.hasRemoval()) {
                 refreshRefsWithStableOrder(deduplicatedRefs.refs)
@@ -943,7 +993,12 @@ abstract class BaseQueueMusicRepository<
             .distinct()
 
         pageKeys.forEach { key ->
-            loadPage(key.segmentId, key.segmentType, key.page, forceRetry = false)
+            loadPage(
+                segmentId = key.segmentId,
+                segmentType = key.segmentType,
+                page = key.page,
+                forceRetry = false
+            )
         }
     }
 
@@ -1079,7 +1134,11 @@ abstract class BaseQueueMusicRepository<
             segmentId = initialLocation.segment.id,
             segmentType = initialLocation.segment.type,
             page = initialLocation.page,
-            forceRetry = forceRetry
+            forceRetry = forceRetry,
+            preferredPositionKey = PositionKey(
+                segmentId = initialLocation.segment.id,
+                sortOrderInSegment = initialLocation.offsetInSegment
+            )
         )
 
         val refreshedMapper = createQueuePositionMapper(dao.getSegments(), dao.getRefs())
@@ -1119,7 +1178,13 @@ abstract class BaseQueueMusicRepository<
     }
 
     // loadPage：加载某个歌单某一页。
-    private suspend fun loadPage(segmentId: String, segmentType: String, page: Int, forceRetry: Boolean) {
+    private suspend fun loadPage(
+        segmentId: String,
+        segmentType: String,
+        page: Int,
+        forceRetry: Boolean,
+        preferredPositionKey: PositionKey? = null
+    ) {
         val key = PageKey(segmentId = segmentId, segmentType = segmentType, page = page)
         loadMutex.withLock {
             val existing = dao.getPage(segmentId, page)
@@ -1135,7 +1200,20 @@ abstract class BaseQueueMusicRepository<
             val songs = pageResult.songs.map { song ->
                 song.toQueueSongEntity(segmentId)
             }
-            val pageCachedCount = songs.toDedupPlan().positionsToKeep.size
+            val preferredProtectedSong = preferredPositionKey?.let { key ->
+                songs.firstOrNull { song -> song.positionKey() == key }?.let { song ->
+                    ProtectedPlayableSong(
+                        songId = song.id,
+                        positionKey = key
+                    )
+                }
+            }
+            val protectedSong = protectedPlayableSong.value ?: preferredProtectedSong
+            val dedupPlan = songs.toDedupPlan(protectedSong)
+            val songsToCache = songs.filter { song ->
+                song.positionKey() in dedupPlan.positionsToCache
+            }
+            val pageCachedCount = songsToCache.size
             // 先构造更新后的歌单，但 loadedCount 暂时保留旧值。
             val updatedPlaylist = segment.copyTo(
                 // 标题以服务端返回为准。
@@ -1151,7 +1229,7 @@ abstract class BaseQueueMusicRepository<
                 // 成功后清掉歌单错误。
                 lastError = null
             )
-            deduplicateQueueByLoadedSongs(songs)
+            deduplicateQueueByLoadedSongs(songs, dedupPlan)
             // 用事务写入歌单、歌曲、页状态。歌曲以 id 为唯一键时，这一步会保留最新片段里的歌曲归属。
             dao.cachePage(
                 // 更新后的歌单。
@@ -1165,7 +1243,7 @@ abstract class BaseQueueMusicRepository<
                     error = null
                 ),
                 // 这一页歌曲。
-                songs = songs
+                songs = songsToCache
             )
             // 页状态写入后，再统计缓存数量并回填。
             refreshLoadedCountsForActiveRefs()

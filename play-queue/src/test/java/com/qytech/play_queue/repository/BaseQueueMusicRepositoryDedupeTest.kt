@@ -1,6 +1,7 @@
 package com.qytech.play_queue.repository
 
 import com.qytech.play_queue.data.SegmentWindowRange
+import com.qytech.play_queue.data.QueueMutationResult
 import com.qytech.play_queue.domain.BaseQueuePositionMapper
 import com.qytech.play_queue.local.BasePlayQueueDao
 import com.qytech.play_queue.local.IQueueSegmentEntity
@@ -52,6 +53,75 @@ class BaseQueueMusicRepositoryDedupeTest {
     }
 
     @Test
+    fun loading_duplicate_keeps_current_playing_song_and_drops_new_duplicate() = runBlocking {
+        val dao = FakeQueueDao()
+        val repository = createRepository(dao)
+
+        repository.playSegmentNow(testSegment("A"))
+        val current = requireNotNull(repository.getPlayableSongAt(0))
+        repository.setCurrentPlayableSong(current)
+
+        repository.addSegmentToTail(testSegment("B"))
+        assertNotNull(repository.getPlayableSongAt(PAGE_SIZE))
+
+        val refs = dao.getRefs()
+
+        assertEquals(36, repository.totalSize())
+        assertTrue(refs.containsPosition("A", 0))
+        assertFalse(refs.containsPosition("B", 2))
+        assertFalse(refs.containsPosition("B", 8))
+        assertFalse(refs.containsPosition("A", 10))
+        assertFalse(refs.containsPosition("A", 15))
+
+        assertEquals(18, dao.getSegment("A")?.loadedCount)
+        assertEquals(17, dao.getSegment("B")?.loadedCount)
+        assertEquals(20, dao.getPage("A", 1)?.cachedCount)
+        assertEquals(17, dao.getPage("B", 1)?.cachedCount)
+        assertEquals(
+            TestSong(
+                id = SHARED_C,
+                segmentId = "A",
+                name = "A-0",
+                singerName = "artist",
+                sortOrderInSegment = 0
+            ),
+            dao.getSongsById(SHARED_C).single()
+        )
+        assertEquals(current.song, dao.getSongAtPosition("A", 0))
+    }
+
+    @Test
+    fun first_play_target_offset_wins_over_later_duplicate_in_same_page() = runBlocking {
+        val dao = FakeQueueDao()
+        val repository = createRepository(dao)
+
+        repository.playSegmentNow(testSegment("B"))
+        val current = requireNotNull(repository.getPlayableSongAt(2))
+        repository.setCurrentPlayableSong(current)
+
+        val refs = dao.getRefs()
+
+        assertEquals(SHARED_C, current.song.id)
+        assertEquals(2, current.location.offsetInSegment)
+        assertEquals(19, repository.totalSize())
+        assertTrue(refs.containsPosition("B", 2))
+        assertFalse(refs.containsPosition("B", 8))
+        assertTrue(refs.containsPosition("B", BROKEN_OFFSET))
+        assertEquals(18, dao.getSegment("B")?.loadedCount)
+        assertEquals(18, dao.getPage("B", 1)?.cachedCount)
+        assertEquals(
+            TestSong(
+                id = SHARED_C,
+                segmentId = "B",
+                name = "B-2",
+                singerName = "artist",
+                sortOrderInSegment = 2
+            ),
+            dao.getSongsById(SHARED_C).single()
+        )
+    }
+
+    @Test
     fun insert_current_segment_to_next_keeps_sanitized_playlist_once() = runBlocking {
         val dao = FakeQueueDao()
         val repository = createRepository(dao)
@@ -98,6 +168,21 @@ class BaseQueueMusicRepositoryDedupeTest {
         repository.playSongNow(song)
         repository.addSongToTail(song)
 
+        assertSingleSongQueue(repository, dao)
+    }
+
+    @Test
+    fun adding_current_playing_song_duplicate_is_noop() = runBlocking {
+        val dao = FakeQueueDao()
+        val repository = createRepository(dao)
+        val song = testSong()
+
+        repository.playSongNow(song)
+        val current = requireNotNull(repository.getPlayableSongAt(0))
+        repository.setCurrentPlayableSong(current)
+
+        assertEquals(QueueMutationResult.Noop, repository.insertSongToNext(song, currentGlobalPosition = 0))
+        assertEquals(QueueMutationResult.Noop, repository.addSongToTail(song))
         assertSingleSongQueue(repository, dao)
     }
 

@@ -5,6 +5,8 @@ import com.qytech.play_queue.local.IQueueSegmentEntity
 import com.qytech.play_queue.local.IQueueSongEntity
 
 interface PlayableQueueSource<S : IQueueSongEntity, SEG : IQueueSegmentEntity> {
+    fun setCurrentPlayableSong(song: PlayableSong<S, SEG>?) = Unit
+
     suspend fun totalSize(): Int
 
     suspend fun getPlayableSongAt(
