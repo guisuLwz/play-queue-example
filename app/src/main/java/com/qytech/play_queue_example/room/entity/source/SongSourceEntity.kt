@@ -1,11 +1,14 @@
 package com.qytech.play_queue_example.room.entity.source
 
 import androidx.room.Entity
-import androidx.room.PrimaryKey
+import androidx.room.Index
 
-@Entity(tableName = "source_songs")
+@Entity(
+    tableName = "source_songs",
+    primaryKeys = ["playlistId", "indexInSegment"],
+    indices = [Index(value = ["id"])]
+)
 data class SongSourceEntity(
-    @PrimaryKey
     val id: Long,
     val playlistId: Long,
     val songName: String = "",

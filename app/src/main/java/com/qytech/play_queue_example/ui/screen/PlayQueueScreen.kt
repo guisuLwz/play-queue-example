@@ -42,6 +42,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.qytech.play_queue.model.QueueRow
 import com.qytech.play_queue_example.model.QueueSong
 import com.qytech.play_queue_example.ui.component.EmptyListMessage
+import com.qytech.play_queue_example.ui.component.PlayQueueSummaryStrip
 import com.qytech.play_queue_example.ui.component.SegmentStateStrip
 import com.qytech.play_queue_example.vm.PlayQueueViewModel
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -76,13 +77,18 @@ fun PlayQueueScreen(
             .fillMaxSize()
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            SegmentStateStrip(
+            PlayQueueSummaryStrip(
                 states = state.segmentStates,
                 totalCount = state.totalCount,
                 visibleWindow = state.visibleWindow,
-                selectedSegmentId = "",
-                onDeleteSegment = viewModel::onDeleteSegment
             )
+//            SegmentStateStrip(
+//                states = state.segmentStates,
+//                totalCount = state.totalCount,
+//                visibleWindow = state.visibleWindow,
+//                selectedSegmentId = "",
+//                onDeleteSegment = viewModel::onDeleteSegment
+//            )
             if (state.totalCount == 0) {
                 EmptyListMessage()
             } else {

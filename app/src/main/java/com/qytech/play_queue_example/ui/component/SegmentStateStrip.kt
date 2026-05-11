@@ -18,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -27,6 +28,58 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.qytech.play_queue_example.state.QueueSegmentLoadState
+
+@Composable
+fun PlayQueueSummaryStrip(
+    states: List<QueueSegmentLoadState>,
+    totalCount: Int,
+    visibleWindow: IntRange,
+) {
+    val cachedCount by remember(states, totalCount) {
+        mutableIntStateOf(
+            states
+                .distinctBy { it.segmentId }
+                .sumOf { it.cachedCount }
+                .coerceIn(0, totalCount)
+        )
+    }
+    val isLoading by remember(states) { mutableStateOf(states.any { it.isLoading }) }
+
+    Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(modifier = Modifier.weight(1f)) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = CardDefaults.cardColors(Color.White)
+                ) {
+                    Column(Modifier.padding(10.dp)) {
+                        Text(
+                            text = "播放列表",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF686862)
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "缓存 $cachedCount/$totalCount · 内存窗口 ${visibleWindow.first}..${visibleWindow.last}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF686862)
+                        )
+                        if (isLoading) {
+                            Spacer(Modifier.height(6.dp))
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable

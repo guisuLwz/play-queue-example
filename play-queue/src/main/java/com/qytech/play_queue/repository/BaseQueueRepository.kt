@@ -195,6 +195,7 @@ abstract class BaseQueueMusicRepository<
                     segmentId = segment.id, // 这里取的是song的id
                     page = 1,
                     isCached = true,
+                    cachedCount = 1,
                     error = null
                 )
             )
@@ -249,14 +250,19 @@ abstract class BaseQueueMusicRepository<
             val allRefs = dao.getRefs()
             val queueWasEmpty = allRefs.isEmpty()
             val loadedSongs = dao.getSongsBySegmentId(queueSegment.id)
+            val currentSegmentRefs = allRefs.filter { it.segmentId == queueSegment.id }
             val withoutSameSegment =
                 removeExistingQueuePositionsBySegmentId(allRefs, queueSegment.id)
-            val insertedRef = createQueueRef(
-                segmentId = queueSegment.id,
-                startOffsetInSegment = 0,
-                length = queueSegment.logicalLength()
-            )
-            val withInsertedSegment = withoutSameSegment.refs + insertedRef
+            val insertedRefs = currentSegmentRefs.ifEmpty {
+                listOf(
+                    createQueueRef(
+                        segmentId = queueSegment.id,
+                        startOffsetInSegment = 0,
+                        length = queueSegment.logicalLength()
+                    )
+                )
+            }
+            val withInsertedSegment = withoutSameSegment.refs + insertedRefs
             val deduplicatedRefs = removeExistingQueuePositionsByLoadedSongs(
                 refs = withInsertedSegment,
                 loadedSongs = loadedSongs
@@ -305,6 +311,7 @@ abstract class BaseQueueMusicRepository<
                     segmentId = segment.id, // 这里取的是song的id
                     page = 1,
                     isCached = true,
+                    cachedCount = 1,
                     error = null
                 )
             )
@@ -331,6 +338,7 @@ abstract class BaseQueueMusicRepository<
             val allRefs = dao.getRefs()
             val queueWasEmpty = allRefs.isEmpty()
             val loadedSongs = dao.getSongsBySegmentId(queueSegment.id)
+            val currentSegmentRefs = allRefs.filter { it.segmentId == queueSegment.id }
             val withoutSameSegment =
                 removeExistingQueuePositionsBySegmentId(allRefs, queueSegment.id)
             val currentTotalSize =
@@ -346,15 +354,19 @@ abstract class BaseQueueMusicRepository<
                     removedGlobalRanges = withoutSameSegment.removedGlobalRanges
                 )
             }
-            val insertedRef = createQueueRef(
-                segmentId = queueSegment.id,
-                startOffsetInSegment = 0,
-                length = queueSegment.logicalLength()
-            )
+            val insertedRefs = currentSegmentRefs.ifEmpty {
+                listOf(
+                    createQueueRef(
+                        segmentId = queueSegment.id,
+                        startOffsetInSegment = 0,
+                        length = queueSegment.logicalLength()
+                    )
+                )
+            }
             val withInsertedSegment = insertQueueRefAtPosition(
                 refs = withoutSameSegment.refs,
                 position = insertPosition,
-                insertedRef = insertedRef
+                insertedRefs = insertedRefs
             )
             val deduplicatedRefs = removeExistingQueuePositionsByLoadedSongs(
                 refs = withInsertedSegment,
@@ -426,6 +438,7 @@ abstract class BaseQueueMusicRepository<
                     segmentId = segment.id, // 这里取的是song的id
                     page = 1,
                     isCached = true,
+                    cachedCount = 1,
                     error = null
                 )
             )
@@ -442,7 +455,20 @@ abstract class BaseQueueMusicRepository<
         position: Int,
         insertedRef: SEG_REF
     ): List<SEG_REF> {
-        if (refs.isEmpty()) return listOf(insertedRef)
+        return insertQueueRefAtPosition(
+            refs = refs,
+            position = position,
+            insertedRefs = listOf(insertedRef)
+        )
+    }
+
+    private fun insertQueueRefAtPosition(
+        refs: List<SEG_REF>,
+        position: Int,
+        insertedRefs: List<SEG_REF>
+    ): List<SEG_REF> {
+        if (insertedRefs.isEmpty()) return refs
+        if (refs.isEmpty()) return insertedRefs
 
         val nextRefs = mutableListOf<SEG_REF>()
         var cursor = 0 // cursor 表示当前遍历到的 ref 在整个队列里的起始位置
@@ -450,7 +476,7 @@ abstract class BaseQueueMusicRepository<
             val endExclusive = cursor + ref.length
             when {
                 position <= cursor -> {
-                    nextRefs += insertedRef
+                    nextRefs += insertedRefs
                     nextRefs += refs.drop(index)
                     return nextRefs
                 }
@@ -465,7 +491,7 @@ abstract class BaseQueueMusicRepository<
                             length = beforeLength
                         )
                     }
-                    nextRefs += insertedRef
+                    nextRefs += insertedRefs
                     if (afterLength > 0) {
                         nextRefs += createQueueRef(
                             segmentId = ref.segmentId,
@@ -483,7 +509,7 @@ abstract class BaseQueueMusicRepository<
                 }
             }
         }
-        nextRefs += insertedRef
+        nextRefs += insertedRefs
         return nextRefs
     }
 
@@ -788,15 +814,44 @@ abstract class BaseQueueMusicRepository<
     private suspend fun refreshRefsWithStableOrder(refs: List<SEG_REF>) {
         if (refs.isEmpty()) {
             dao.refreshRefs(emptyList())
+            refreshLoadedCountsForActiveRefs(emptyList())
             return
         }
         val sortIndexes =
             FractionalIndexing.generateNFractionalIndicesBetween(null, null, refs.size)
-        dao.refreshRefs(
-            refs.mapIndexed { index, ref ->
-                ref.copyTo(sortIndex = sortIndexes[index])
+        val orderedRefs = refs.mapIndexed { index, ref ->
+            ref.copyTo(sortIndex = sortIndexes[index])
+        }
+        dao.refreshRefs(orderedRefs)
+        refreshLoadedCountsForActiveRefs(orderedRefs)
+    }
+
+    private suspend fun refreshLoadedCountsForActiveRefs() {
+        refreshLoadedCountsForActiveRefs(dao.getRefs())
+    }
+
+    private suspend fun refreshLoadedCountsForActiveRefs(refs: List<SEG_REF>) {
+        val refsBySegment = refs.groupBy { it.segmentId }
+        if (refsBySegment.isEmpty()) return
+
+        val segmentsById = dao.getSegments().associateBy { it.id }
+        refsBySegment.forEach { (segmentId, segmentRefs) ->
+            val segment = segmentsById[segmentId] ?: return@forEach
+            val loadedCount = dao.getSongsBySegmentId(segmentId)
+                .asSequence()
+                .map { it.sortOrderInSegment }
+                .distinct()
+                .count { offset ->
+                    segmentRefs.any { ref ->
+                        offset >= ref.startOffsetInSegment &&
+                                offset < ref.startOffsetInSegment + ref.length
+                    }
+                }
+
+            if (segment.loadedCount != loadedCount) {
+                dao.upsertSegment(segment.copyTo(loadedCount = loadedCount))
             }
-        )
+        }
     }
 
 //    suspend fun getSegmentFirstSortIndex(): String {
@@ -1064,6 +1119,7 @@ abstract class BaseQueueMusicRepository<
             val songs = pageResult.songs.map { song ->
                 song.toQueueSongEntity(segmentId)
             }
+            val pageCachedCount = songs.toDedupPlan().positionsToKeep.size
             // 先构造更新后的歌单，但 loadedCount 暂时保留旧值。
             val updatedPlaylist = segment.copyTo(
                 // 标题以服务端返回为准。
@@ -1089,13 +1145,14 @@ abstract class BaseQueueMusicRepository<
                     segmentId = segmentId,
                     page = page,
                     isCached = true,
+                    cachedCount = pageCachedCount,
                     error = null
                 ),
                 // 这一页歌曲。
                 songs = songs
             )
             // 页状态写入后，再统计缓存数量并回填。
-            dao.upsertSegment(updatedPlaylist.copyTo(loadedCount = dao.countCachedSongs(segmentId)))
+            refreshLoadedCountsForActiveRefs()
         } catch (error: Throwable) {
             // 请求或写库失败时，取错误信息。
             val message = error.message ?: "加载失败"
@@ -1105,6 +1162,7 @@ abstract class BaseQueueMusicRepository<
                     segmentId = segmentId,
                     page = page,
                     isCached = false,
+                    cachedCount = 0,
                     error = message
                 )
             )
@@ -1146,6 +1204,7 @@ abstract class BaseQueueMusicRepository<
         segmentId: String,
         page: Int,
         isCached: Boolean,
+        cachedCount: Int,
         error: String?
     ): SEG_PAGE
 

@@ -54,6 +54,11 @@ interface IQueueSegmentPageEntity {
     val isCached: Boolean
 
     /**
+     * 这一页实际可用并写入缓存的歌曲数量，失败或损坏的位置不计入。
+     */
+    val cachedCount: Int
+
+    /**
      * 这一页加载失败时的错误信息；null 表示没有错误
      */
     val error: String?

@@ -13,5 +13,6 @@ data class QueueSegmentPageEntity(
     override val segmentId: String,
     override val page: Int,
     override val isCached: Boolean,
+    override val cachedCount: Int,
     override val error: String?
 ) : IQueueSegmentPageEntity

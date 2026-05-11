@@ -107,8 +107,14 @@ class SourceRepository @Inject constructor(
     private fun getPlaylists(): List<PlaylistSourceEntity> {
         return List(PLAYLIST_COUNT) { index ->
             val displayIndex = index + 1
+            val playlistId = displayIndex.toLong()
+
+            testPlaylist(playlistId, index)?.let { playlist ->
+                return@List playlist
+            }
+
             PlaylistSourceEntity(
-                id = displayIndex.toLong(),
+                id = playlistId,
                 name = "${playlistMoods[index % playlistMoods.size]} $displayIndex",
                 subtitle = if (index in 0 until MILLION_ROW_PLAYLIST_COUNT) {
                     "Large playlist seeded by metadata only"
@@ -125,24 +131,98 @@ class SourceRepository @Inject constructor(
         }
     }
 
+    private fun testPlaylist(playlistId: Long, index: Int): PlaylistSourceEntity? {
+        return when (playlistId) {
+            TEST_PLAYLIST_A_ID -> PlaylistSourceEntity(
+                id = playlistId,
+                name = "Test A - shared songs",
+                subtitle = "Contains shared songs at 0, 10, 15",
+                totalCount = TEST_PLAYLIST_SIZE,
+                colorArgb = palettes[index % palettes.size],
+            )
+
+            TEST_PLAYLIST_B_ID -> PlaylistSourceEntity(
+                id = playlistId,
+                name = "Test B - duplicate and broken",
+                subtitle = "Shares songs with A, repeats one song, misses one row",
+                totalCount = TEST_PLAYLIST_SIZE,
+                colorArgb = palettes[index % palettes.size],
+            )
+
+            else -> null
+        }
+    }
+
     private fun getSongs(
         playlist: PlaylistSourceEntity,
         from: Int,
         end: Int
     ): List<SongSourceEntity> {
-        return List(end - from) { index ->
-            val indexInSegment = from + index
-            val number = indexInSegment + 1
-            SongSourceEntity(
-                id = playlist.id * 10_000_000 + number,
-                playlistId = playlist.id,
-                songName = "Track ${number.toString().padStart(2, '0')} - ${playlist.name}",
-                singerName = artists[(indexInSegment + playlist.id.toInt()) % artists.size],
-                album = albums[(indexInSegment / 3 + playlist.id.toInt()) % albums.size],
-                durationSeconds = 154 + ((indexInSegment * 17 + playlist.id.toInt()) % 132),
-                indexInSegment = indexInSegment
+        return when (playlist.id) {
+            TEST_PLAYLIST_A_ID -> getTestSongs(
+                playlist = playlist,
+                from = from,
+                end = end,
+                sharedIdsByOffset = mapOf(
+                    0 to TEST_SHARED_C_ID,
+                    10 to TEST_SHARED_D_ID,
+                    15 to TEST_SHARED_F_ID
+                )
             )
+
+            TEST_PLAYLIST_B_ID -> getTestSongs(
+                playlist = playlist,
+                from = from,
+                end = end,
+                sharedIdsByOffset = mapOf(
+                    2 to TEST_SHARED_C_ID,
+                    5 to TEST_SHARED_D_ID,
+                    8 to TEST_SHARED_C_ID,
+                    10 to TEST_SHARED_F_ID
+                ),
+                brokenOffsets = setOf(TEST_B_BROKEN_OFFSET)
+            )
+
+            else -> List(end - from) { index ->
+                val indexInSegment = from + index
+                createSong(playlist, indexInSegment)
+            }
         }
+    }
+
+    private fun getTestSongs(
+        playlist: PlaylistSourceEntity,
+        from: Int,
+        end: Int,
+        sharedIdsByOffset: Map<Int, Long>,
+        brokenOffsets: Set<Int> = emptySet()
+    ): List<SongSourceEntity> {
+        return (from until end)
+            .filterNot { indexInSegment -> indexInSegment in brokenOffsets }
+            .map { indexInSegment ->
+                createSong(
+                    playlist = playlist,
+                    indexInSegment = indexInSegment,
+                    songId = sharedIdsByOffset[indexInSegment]
+                )
+            }
+    }
+
+    private fun createSong(
+        playlist: PlaylistSourceEntity,
+        indexInSegment: Int,
+        songId: Long? = null
+    ): SongSourceEntity {
+        val number = indexInSegment + 1
+        return SongSourceEntity(
+            id = songId ?: (playlist.id * 10_000_000 + number),
+            playlistId = playlist.id,
+            songName = "Track ${number.toString().padStart(2, '0')} - ${playlist.name}",
+            singerName = artists[(indexInSegment + playlist.id.toInt()) % artists.size],
+            album = albums[(indexInSegment / 3 + playlist.id.toInt()) % albums.size],
+            durationSeconds = 154 + ((indexInSegment * 17 + playlist.id.toInt()) % 132),
+            indexInSegment = indexInSegment
+        )
     }
 
     companion object {
@@ -152,6 +232,13 @@ class SourceRepository @Inject constructor(
         internal const val MAX_LOAD_SIZE = 250
         private const val MILLION_ROW_PLAYLIST_COUNT = 3
         private const val MILLION_ROW_PLAYLIST_SIZE = 350_000
+        private const val TEST_PLAYLIST_A_ID = 4L
+        private const val TEST_PLAYLIST_B_ID = 5L
+        private const val TEST_PLAYLIST_SIZE = 20
+        private const val TEST_B_BROKEN_OFFSET = 7
+        private const val TEST_SHARED_C_ID = 9_000_001L
+        private const val TEST_SHARED_D_ID = 9_000_002L
+        private const val TEST_SHARED_F_ID = 9_000_003L
     }
 
 }

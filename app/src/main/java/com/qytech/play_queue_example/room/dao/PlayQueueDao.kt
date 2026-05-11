@@ -91,20 +91,10 @@ interface PlayQueueDao : BasePlayQueueDao<
 
     @Query(
         """
-        SELECT COALESCE(
-            SUM(
-                CASE
-                    WHEN queue_segments.totalCount IS NULL THEN queue_segments.pageSize
-                    WHEN queue_segment_pages.page * queue_segments.pageSize <= queue_segments.totalCount THEN queue_segments.pageSize
-                    ELSE queue_segments.totalCount - ((queue_segment_pages.page - 1) * queue_segments.pageSize)
-                END
-            ),
-            0
-        )
+        SELECT COALESCE(SUM(cachedCount), 0)
         FROM queue_segment_pages
-        INNER JOIN queue_segments ON queue_segments.id = queue_segment_pages.segmentId
-        WHERE queue_segment_pages.segmentId = :segmentId
-            AND queue_segment_pages.isCached = 1
+        WHERE segmentId = :segmentId
+            AND isCached = 1
         """
     )
     override suspend fun countCachedSongs(segmentId: String): Int

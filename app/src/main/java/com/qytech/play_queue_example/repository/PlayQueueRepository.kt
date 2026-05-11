@@ -47,12 +47,14 @@ class PlayQueueRepository @Inject constructor(
         segmentId: String,
         page: Int,
         isCached: Boolean,
+        cachedCount: Int,
         error: String?
     ): QueueSegmentPageEntity {
         return QueueSegmentPageEntity(
             segmentId = segmentId,
             page = page,
             isCached = isCached,
+            cachedCount = cachedCount,
             error = error
         )
     }
