@@ -87,16 +87,25 @@ abstract class BaseQueueMusicRepository<
         return combine(
             dao.observeSegments(),
             dao.observeRefs(),
+            dao.observeAllPages(),
             loadingPageKeys
-        ) { segments, queueRefs, loadingKeys ->
-            Triple(segments, queueRefs, loadingKeys)
-        }.flatMapLatest { (segments, queueRefs, loadingKeys) ->
+        ) { segments, queueRefs, allPages, loadingKeys ->
+            QueueObservation(
+                segments = segments,
+                queueRefs = queueRefs,
+                allPages = allPages,
+                loadingKeys = loadingKeys
+            )
+        }.flatMapLatest { observation ->
+            val segments = observation.segments
+            val queueRefs = observation.queueRefs
             val mapper = createQueuePositionMapper(segments, queueRefs)
             observeMappedWindow(
                 segments = mapper.segments,
                 mapper = mapper,
                 window = window,
-                loadingKeys = loadingKeys
+                allPages = observation.allPages,
+                loadingKeys = observation.loadingKeys
             )
         }
     }
@@ -105,6 +114,7 @@ abstract class BaseQueueMusicRepository<
         segments: List<SEG>,
         mapper: MAPPER,
         window: IntRange,
+        allPages: List<SEG_PAGE>,
         loadingKeys: Set<PageKey>
     ): Flow<RepositorySnapshot<S, SEG, SEG_PAGE, SEG_REF>> {
         if (mapper.totalSize <= 0) {
@@ -130,6 +140,12 @@ abstract class BaseQueueMusicRepository<
                     )
                 },
                 pagesByKey = pages.associateBy {
+                    PageKey(
+                        segmentId = it.segmentId,
+                        page = it.page
+                    )
+                },
+                allPagesByKey = allPages.associateBy {
                     PageKey(
                         segmentId = it.segmentId,
                         page = it.page
@@ -1224,7 +1240,7 @@ abstract class BaseQueueMusicRepository<
         segmentId: String = this.segmentId,
         name: String = this.name,
         coverUrl: String? = this.coverUrl,
-        artist: String = this.singerName,
+        singerName: String = this.singerName,
         durationMs: Long = this.durationMs,
         playUrl: String? = this.playUrl,
         sortOrderInSegment: Int = this.sortOrderInSegment
@@ -1259,3 +1275,10 @@ abstract class BaseQueueMusicRepository<
         pageRange: Boolean
     ): QUERY
 }
+
+private data class QueueObservation<SEG, SEG_PAGE, SEG_REF>(
+    val segments: List<SEG>,
+    val queueRefs: List<SEG_REF>,
+    val allPages: List<SEG_PAGE>,
+    val loadingKeys: Set<PageKey>
+)

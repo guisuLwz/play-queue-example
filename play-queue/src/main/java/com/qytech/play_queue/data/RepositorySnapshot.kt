@@ -17,6 +17,7 @@ data class RepositorySnapshot<S : IQueueSongEntity, SEG : IQueueSegmentEntity, S
     val ranges: List<SegmentWindowRange<SEG>>,
     val songsByPositionKey: Map<PositionKey, S>,
     val pagesByKey: Map<PageKey, SEG_PAGE>,
+    val allPagesByKey: Map<PageKey, SEG_PAGE>,
     val loadingPageKeys: Set<PageKey>
 ) {
     fun locate(globalPosition: Int) = positionMapper?.locate(globalPosition)
@@ -33,6 +34,7 @@ data class RepositorySnapshot<S : IQueueSongEntity, SEG : IQueueSegmentEntity, S
                 ranges = emptyList(),
                 songsByPositionKey = emptyMap(),
                 pagesByKey = emptyMap(),
+                allPagesByKey = emptyMap(),
                 loadingPageKeys = emptySet()
             )
 

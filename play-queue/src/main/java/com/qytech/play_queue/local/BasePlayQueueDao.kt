@@ -28,6 +28,8 @@ interface BasePlayQueueDao<
      */
     fun observePagesInWindow(query: QUERY): Flow<List<SEG_PAGE>>
 
+    fun observeAllPages(): Flow<List<SEG_PAGE>>
+
     fun observeRefs(): Flow<List<SEG_REF>>
 
     /**

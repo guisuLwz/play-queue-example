@@ -121,7 +121,7 @@ class PlayQueueViewModel @Inject constructor(
         return PlayQueueUiState(
             totalCount = totalSize,
             rowsByPosition = rowsByPosition,
-            segmentStates = segments.map { it.toLoadState(loadingPageKeys) },
+            segmentStates = segments.map { it.toLoadState(loadingPageKeys, allPagesByKey) },
             currentPlayingSong = playingSong,
             isPlaying = playing,
             playbackMode = mode,

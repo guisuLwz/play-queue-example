@@ -18,7 +18,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -35,15 +34,20 @@ fun PlayQueueSummaryStrip(
     totalCount: Int,
     visibleWindow: IntRange,
 ) {
-    val cachedCount by remember(states, totalCount) {
-        mutableIntStateOf(
-            states
-                .distinctBy { it.segmentId }
-                .sumOf { it.cachedCount }
-                .coerceIn(0, totalCount)
-        )
+    val segments = states.distinctBy { it.segmentId }
+    val cachedCount = segments
+        .sumOf { it.cachedCount }
+        .coerceIn(0, totalCount)
+    val isLoading = segments.any { it.isLoading }
+    val hasUnconfirmedPage = segments.any { state ->
+        !state.isFullyCached || state.hasPageError
     }
-    val isLoading by remember(states) { mutableStateOf(states.any { it.isLoading }) }
+    val statusText = when {
+        totalCount == 0 -> "空队列"
+        isLoading -> "统计中"
+        hasUnconfirmedPage -> "待加载中"
+        else -> "已确认"
+    }
 
     Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
         Row(
@@ -66,7 +70,7 @@ fun PlayQueueSummaryStrip(
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            text = "缓存 $cachedCount/$totalCount · 内存窗口 ${visibleWindow.first}..${visibleWindow.last}",
+                            text = "可用缓存 $cachedCount 首 · 当前队列 $totalCount 首 · $statusText",
                             style = MaterialTheme.typography.bodySmall,
                             color = Color(0xFF686862)
                         )

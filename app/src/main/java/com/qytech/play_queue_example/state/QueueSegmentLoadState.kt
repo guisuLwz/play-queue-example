@@ -11,5 +11,7 @@ data class QueueSegmentLoadState(
     override val isLoading: Boolean,
     override val error: String?,
     override val hasMore: Boolean,
+    override val isFullyCached: Boolean = false,
+    override val hasPageError: Boolean = false,
     val isSelected: Boolean = false,
 ) : IQueueSegmentLoadState

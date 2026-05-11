@@ -452,7 +452,7 @@ private class TestQueueRepository(
         segmentId: String,
         name: String,
         coverUrl: String?,
-        artist: String,
+        singerName: String,
         durationMs: Long,
         playUrl: String?,
         sortOrderInSegment: Int
@@ -462,7 +462,7 @@ private class TestQueueRepository(
             segmentId = segmentId,
             name = name,
             coverUrl = coverUrl,
-            singerName = artist,
+            singerName = singerName,
             durationMs = durationMs,
             playUrl = playUrl,
             sortOrderInSegment = sortOrderInSegment
@@ -528,6 +528,8 @@ private class FakeQueueDao : BasePlayQueueDao<Unit, TestSong, TestSegment, TestP
     override fun observeSongsInWindow(query: Unit): Flow<List<TestSong>> = flowOf(songs.values.toList())
 
     override fun observePagesInWindow(query: Unit): Flow<List<TestPage>> = flowOf(pages.values.toList())
+
+    override fun observeAllPages(): Flow<List<TestPage>> = flowOf(pages.values.toList())
 
     override fun observeRefs(): Flow<List<TestRef>> = flowOf(refs.toList())
 

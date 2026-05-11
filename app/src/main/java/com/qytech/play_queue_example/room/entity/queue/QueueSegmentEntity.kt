@@ -21,13 +21,35 @@ data class QueueSegmentEntity(
     override val sortIndex: String = ""
 ) : IQueueSegmentEntity
 
-fun QueueSegmentEntity.toLoadState(loadingKeys: Set<PageKey>) = QueueSegmentLoadState(
-    segmentId = id,
-    name = name,
-    totalCount = totalCount,
-    cachedCount = loadedCount,
-    pageSize = pageSize,
-    isLoading = loadingKeys.any { it.segmentId == id },
-    error = lastError,
-    hasMore = hasMore
-)
+fun QueueSegmentEntity.toLoadState(
+    loadingKeys: Set<PageKey>,
+    pagesByKey: Map<PageKey, QueueSegmentPageEntity>
+): QueueSegmentLoadState {
+    val expectedPageCount = expectedPageCount()
+    val expectedPages = expectedPageCount?.let { count ->
+        (1..count).map { page -> pagesByKey[PageKey(segmentId = id, page = page)] }
+    }.orEmpty()
+    val hasPageError = expectedPages.any { page -> page?.error != null }
+    val isFullyCached = expectedPageCount != null &&
+            expectedPages.size == expectedPageCount &&
+            expectedPages.all { page -> page?.isCached == true && page.error == null }
+
+    return QueueSegmentLoadState(
+        segmentId = id,
+        name = name,
+        totalCount = totalCount,
+        cachedCount = loadedCount,
+        pageSize = pageSize,
+        isLoading = loadingKeys.any { it.segmentId == id },
+        error = lastError,
+        hasMore = hasMore,
+        isFullyCached = isFullyCached,
+        hasPageError = hasPageError
+    )
+}
+
+private fun QueueSegmentEntity.expectedPageCount(): Int? {
+    val count = totalCount ?: return null
+    if (count <= 0) return 0
+    return (count + pageSize - 1) / pageSize
+}

@@ -41,6 +41,9 @@ interface PlayQueueDao : BasePlayQueueDao<
     @RawQuery(observedEntities = [QueueSegmentPageEntity::class])
     override fun observePagesInWindow(query: SupportSQLiteQuery): Flow<List<QueueSegmentPageEntity>>
 
+    @Query("SELECT * FROM queue_segment_pages")
+    override fun observeAllPages(): Flow<List<QueueSegmentPageEntity>>
+
     @Query("SELECT * FROM queue_segment_refs ORDER BY sortIndex ASC")
     override fun observeRefs(): Flow<List<QueueSegmentRef>>
 

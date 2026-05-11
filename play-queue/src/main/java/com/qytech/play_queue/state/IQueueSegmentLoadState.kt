@@ -13,4 +13,6 @@ interface IQueueSegmentLoadState {
     val isLoading: Boolean
     val error: String?
     val hasMore: Boolean
+    val isFullyCached: Boolean
+    val hasPageError: Boolean
 }
