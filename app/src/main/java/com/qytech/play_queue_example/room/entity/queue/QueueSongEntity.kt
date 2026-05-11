@@ -7,7 +7,7 @@ import com.qytech.play_queue_example.model.QueueSong
 
 @Entity(
     tableName = "queue_songs",
-    primaryKeys = ["segmentId", "id"],
+    primaryKeys = ["id"],
     indices = [Index(value = ["segmentId", "sortOrderInSegment"])]
 )
 data class QueueSongEntity(

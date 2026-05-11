@@ -285,17 +285,6 @@ abstract class BaseQueueMusicRepository<
                 sortOrderInSegment = 0
             )
 
-            dao.cachePage(
-                segment = segment,
-                songs = listOf(singleQueueSong),
-                page = createSegmentPageEntity(
-                    segmentId = segment.id, // 这里取的是song的id
-                    page = 1,
-                    isCached = true,
-                    error = null
-                )
-            )
-
             val allSegments = dao.getSegments()
             val allRefs = dao.getRefs()
             val deduplicatedRefs = removeExistingQueuePositionsBySongId(allRefs, song.id)
@@ -309,6 +298,16 @@ abstract class BaseQueueMusicRepository<
             )
 
             refreshRefsWithStableOrder(newAllRefs)
+            dao.cachePage(
+                segment = segment,
+                songs = listOf(singleQueueSong),
+                page = createSegmentPageEntity(
+                    segmentId = segment.id, // 这里取的是song的id
+                    page = 1,
+                    isCached = true,
+                    error = null
+                )
+            )
 
             QueueMutationResult(
                 firstInsertedPosition = firstInsertedPosition,
@@ -391,17 +390,6 @@ abstract class BaseQueueMusicRepository<
                 sortOrderInSegment = 0
             )
 
-            dao.cachePage(
-                segment = segment,
-                songs = listOf(singleQueueSong),
-                page = createSegmentPageEntity(
-                    segmentId = segment.id, // 这里取的是song的id
-                    page = 1,
-                    isCached = true,
-                    error = null
-                )
-            )
-
             val allSegments = dao.getSegments()
             val allRefs = dao.getRefs()
             val deduplicatedRefs = removeExistingQueuePositionsBySongId(allRefs, song.id)
@@ -431,6 +419,16 @@ abstract class BaseQueueMusicRepository<
             )
 
             refreshRefsWithStableOrder(newAllRefs)
+            dao.cachePage(
+                segment = segment,
+                songs = listOf(singleQueueSong),
+                page = createSegmentPageEntity(
+                    segmentId = segment.id, // 这里取的是song的id
+                    page = 1,
+                    isCached = true,
+                    error = null
+                )
+            )
 
             QueueMutationResult(
                 firstInsertedPosition = insertPosition,
@@ -536,11 +534,13 @@ abstract class BaseQueueMusicRepository<
         refs: List<SEG_REF>,
         loadedSongs: List<S>
     ): DeduplicatedQueueRefs<SEG_REF> {
+        val plan = loadedSongs.toDedupPlan()
         return removeExistingQueuePositionsByLoadedSongs(
             refs = refs,
             loadedSongs = loadedSongs,
-            positionsToKeep = loadedSongs.toPositionKeys(),
-            extraSongIds = emptySet()
+            positionsToKeep = plan.positionsToKeep,
+            extraSongIds = emptySet(),
+            loadedOffsetsToRemoveBySegment = plan.offsetsToRemoveBySegment
         )
     }
 
@@ -548,7 +548,8 @@ abstract class BaseQueueMusicRepository<
         refs: List<SEG_REF>,
         loadedSongs: List<S>,
         positionsToKeep: Set<PositionKey>,
-        extraSongIds: Set<String>
+        extraSongIds: Set<String>,
+        loadedOffsetsToRemoveBySegment: Map<String, Set<Int>> = emptyMap()
     ): DeduplicatedQueueRefs<SEG_REF> {
         if (refs.isEmpty() || (loadedSongs.isEmpty() && extraSongIds.isEmpty())) {
             return DeduplicatedQueueRefs(
@@ -584,6 +585,10 @@ abstract class BaseQueueMusicRepository<
                     ?.asSequence()
                     ?.filter { offset -> offset in refStart until refEndExclusive }
                     ?.forEach { offset -> add(offset) }
+                loadedOffsetsToRemoveBySegment[ref.segmentId]
+                    ?.asSequence()
+                    ?.filter { offset -> offset in refStart until refEndExclusive }
+                    ?.forEach { offset -> add(offset) }
                 if (ref.segmentId in songIds) {
                     (refStart until refEndExclusive).forEach { offset -> add(offset) }
                 }
@@ -615,6 +620,35 @@ abstract class BaseQueueMusicRepository<
             removedGlobalRanges = removedGlobalRanges
                 .filter { it.length > 0 }
                 .sortedWith(compareBy<RemovedGlobalRange> { it.startInclusive }.thenBy { it.endExclusive })
+        )
+    }
+
+    private fun List<S>.toDedupPlan(): SongPositionDedupPlan {
+        val latestBySongId = LinkedHashMap<String, S>()
+        forEach { song ->
+            val current = latestBySongId[song.id]
+            if (current == null || song.sortOrderInSegment >= current.sortOrderInSegment) {
+                latestBySongId[song.id] = song
+            }
+        }
+
+        val positionsToKeep = latestBySongId.values.toList().toPositionKeys()
+        val offsetsToRemoveBySegment = asSequence()
+            .filter { song ->
+                PositionKey(
+                    segmentId = song.segmentId,
+                    sortOrderInSegment = song.sortOrderInSegment
+                ) !in positionsToKeep
+            }
+            .groupBy(
+                keySelector = { song -> song.segmentId },
+                valueTransform = { song -> song.sortOrderInSegment }
+            )
+            .mapValues { (_, offsets) -> offsets.toSet() }
+
+        return SongPositionDedupPlan(
+            positionsToKeep = positionsToKeep,
+            offsetsToRemoveBySegment = offsetsToRemoveBySegment
         )
     }
 
@@ -688,6 +722,11 @@ abstract class BaseQueueMusicRepository<
             )
         }.toSet()
     }
+
+    private data class SongPositionDedupPlan(
+        val positionsToKeep: Set<PositionKey>,
+        val offsetsToRemoveBySegment: Map<String, Set<Int>>
+    )
 
     private fun adjustedInsertPositionAfterRemoval(
         currentGlobalPosition: Int,
@@ -1040,7 +1079,8 @@ abstract class BaseQueueMusicRepository<
                 // 成功后清掉歌单错误。
                 lastError = null
             )
-            // 用事务写入歌单、歌曲、页状态。
+            deduplicateQueueByLoadedSongs(songs)
+            // 用事务写入歌单、歌曲、页状态。歌曲以 id 为唯一键时，这一步会保留最新片段里的歌曲归属。
             dao.cachePage(
                 // 更新后的歌单。
                 segment = updatedPlaylist,
@@ -1054,9 +1094,8 @@ abstract class BaseQueueMusicRepository<
                 // 这一页歌曲。
                 songs = songs
             )
-            // 歌曲写入后，再统计真实缓存数量并回填。
+            // 页状态写入后，再统计缓存数量并回填。
             dao.upsertSegment(updatedPlaylist.copyTo(loadedCount = dao.countCachedSongs(segmentId)))
-            deduplicateQueueByLoadedSongs(songs)
         } catch (error: Throwable) {
             // 请求或写库失败时，取错误信息。
             val message = error.message ?: "加载失败"

@@ -19,8 +19,7 @@ interface IQueueSegmentEntity {
 
 /**
  * 歌曲 room 的实例接口，用于存储 song
- * 设：segmentId 和 id 为主键
- * 设：segmentId 和 sortOrder 为索引
+ * 设：id 为主键，segmentId 和 sortOrder 用于定位队列片段内的位置
  */
 interface IQueueSongEntity {
     val id: String

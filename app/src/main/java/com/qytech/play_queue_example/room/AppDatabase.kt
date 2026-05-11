@@ -22,7 +22,7 @@ import com.qytech.play_queue_example.room.entity.source.SongSourceEntity
         QueueSegmentPageEntity::class,
         QueueSegmentRef::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase: RoomDatabase() {
