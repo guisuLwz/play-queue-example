@@ -100,10 +100,10 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
 
     private suspend fun playLocked(currentGlobalPosition: Int) {
         setPlayingLocked(true)
-        playerDelegate.play()
         queueSource.preloadPlaybackAround(currentGlobalPosition)
         preparePreviousIfNeededLocked(currentGlobalPosition)
         prepareNextIfNeededLocked(currentGlobalPosition)
+        playerDelegate.play()
     }
 
     suspend fun pause(): PlayableSong<S, SEG>? {
@@ -348,9 +348,9 @@ abstract class BasePlaybackQueueController<S : IQueueSongEntity, SEG : IQueueSeg
             isPlaying = shouldPlay
         )
         queueSource.preloadPlaybackAround(playableSong.globalPosition)
-        if (shouldPlay) playerDelegate.onPreparePlay(playableSong)
         preparePreviousIfNeededLocked(playableSong.globalPosition)
         prepareNextIfNeededLocked(playableSong.globalPosition)
+        if (shouldPlay) playerDelegate.onPreparePlay(playableSong)
         return playableSong
     }
 
