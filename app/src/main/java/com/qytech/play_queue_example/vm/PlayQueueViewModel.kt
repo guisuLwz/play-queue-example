@@ -80,9 +80,9 @@ class PlayQueueViewModel @Inject constructor(
         }
     }
 
-    fun onDeleteSegment(segmentId: String) {
+    fun onDeleteSegment(segmentId: String, segmentType: String = "playlist") {
         viewModelScope.launch(Dispatchers.IO) {
-            val result = repository.removeQueueSegment(segmentId)
+            val result = repository.removeQueueSegment(segmentId, segmentType)
             playbackController.applyQueueRemovalResult(result)
             repository.preloadQueueWindow(visibleWindow.value)
         }
@@ -161,6 +161,7 @@ class PlayQueueViewModel @Inject constructor(
             return QueueRow.ErrorRow(
                 globalPosition = globalPosition,
                 segmentId = segment.id,
+                segmentType = segment.type,
                 segmentName = segment.name,
                 page = page,
                 message = pageState.error ?: "加载失败"
@@ -171,6 +172,7 @@ class PlayQueueViewModel @Inject constructor(
             return QueueRow.ErrorRow(
                 globalPosition = globalPosition,
                 segmentId = segment.id,
+                segmentType = segment.type,
                 segmentName = segment.name,
                 page = page,
                 title = "${segment.name} 第${located.offsetInSegment + 1}首无法播放",
@@ -182,6 +184,7 @@ class PlayQueueViewModel @Inject constructor(
         return QueueRow.PlaceholderRow(
             globalPosition = globalPosition,
             segmentId = segment.id,
+            segmentType = segment.type,
             segmentName = segment.name,
             offsetInSegment = located.offsetInSegment,
             page = page,

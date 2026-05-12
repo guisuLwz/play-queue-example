@@ -5,6 +5,6 @@ package com.qytech.play_queue.data
  */
 data class PositionKey(
     val segmentId: String,
-    val segmentType: String = "",
+    val segmentType: String,
     val sortOrderInSegment: Int
 )

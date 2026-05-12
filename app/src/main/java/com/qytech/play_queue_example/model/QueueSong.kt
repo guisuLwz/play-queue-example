@@ -6,6 +6,7 @@ data class QueueSong(
     override val globalPosition: Int,
     override val songId: String,
     override val segmentId: String,
+    override val segmentType: String,
     override val segmentName: String,
     override val name: String,
     override val singerName: String,

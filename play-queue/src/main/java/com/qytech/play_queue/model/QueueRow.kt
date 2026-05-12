@@ -7,6 +7,7 @@ package com.qytech.play_queue.model
 sealed interface QueueRow {
     val globalPosition: Int
     val segmentId: String
+    val segmentType: String
     val segmentName: String
 
     data class SongRow<S: IQueueSongUiModel>(
@@ -14,22 +15,25 @@ sealed interface QueueRow {
     ): QueueRow {
         override val globalPosition: Int = song.globalPosition
         override val segmentId: String = song.segmentId
+        override val segmentType: String = song.segmentType
         override val segmentName: String = song.segmentName
     }
 
     data class PlaceholderRow(
         override val globalPosition: Int,
         override val segmentId: String,
+        override val segmentType: String,
         override val segmentName: String,
         val offsetInSegment: Int,
         val page: Int,
         val isPageLoading: Boolean,
-        val isOutsideMemoryWindow: Boolean
+        val isOutsideMemoryWindow: Boolean,
     ) : QueueRow
 
     data class ErrorRow(
         override val globalPosition: Int,
         override val segmentId: String,
+        override val segmentType: String,
         override val segmentName: String,
         val page: Int,
         val title: String = "",

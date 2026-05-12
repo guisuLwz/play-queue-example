@@ -13,6 +13,7 @@ data class QueueSegmentRef(
     @PrimaryKey(autoGenerate = true)
     override val id: Long = 0,
     override val segmentId: String,
+    override val segmentType: String,
     override val startOffsetInSegment: Int,
     override val length: Int,
     override val sortIndex: String = ""

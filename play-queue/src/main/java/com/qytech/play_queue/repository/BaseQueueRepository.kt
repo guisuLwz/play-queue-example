@@ -74,6 +74,7 @@ abstract class BaseQueueMusicRepository<
                 songId = playableSong.song.id,
                 positionKey = PositionKey(
                     segmentId = playableSong.location.segment.id,
+                    segmentType = playableSong.location.segment.type,
                     sortOrderInSegment = playableSong.location.offsetInSegment
                 )
             )
@@ -149,18 +150,21 @@ abstract class BaseQueueMusicRepository<
                 songsByPositionKey = songs.associateBy {
                     PositionKey(
                         segmentId = it.segmentId,
+                        segmentType = it.segmentType,
                         sortOrderInSegment = it.sortOrderInSegment
                     )
                 },
                 pagesByKey = pages.associateBy {
                     PageKey(
                         segmentId = it.segmentId,
+                        segmentType = it.segmentType,
                         page = it.page
                     )
                 },
                 allPagesByKey = allPages.associateBy {
                     PageKey(
                         segmentId = it.segmentId,
+                        segmentType = it.segmentType,
                         page = it.page
                     )
                 },
@@ -181,6 +185,7 @@ abstract class BaseQueueMusicRepository<
                 refs = listOf(
                     createQueueRef(
                         segmentId = segment.id,
+                        segmentType = segment.type,
                         startOffsetInSegment = 0,
                         length = segment.logicalLength()
                     )
@@ -211,6 +216,7 @@ abstract class BaseQueueMusicRepository<
                 refs = listOf(
                     createQueueRef(
                         segmentId = segment.id,
+                        segmentType = segment.type,
                         startOffsetInSegment = 0,
                         length = 1
                     )
@@ -222,6 +228,7 @@ abstract class BaseQueueMusicRepository<
                 songs = listOf(singleQueueSong),
                 page = createSegmentPageEntity(
                     segmentId = segment.id, // 这里取的是song的id
+                    segmentType = segment.type,
                     page = 1,
                     isCached = true,
                     cachedCount = 1,
@@ -254,6 +261,7 @@ abstract class BaseQueueMusicRepository<
                 refs = listOf(
                     createQueueRef(
                         segmentId = segment.id,
+                        segmentType = segment.type,
                         startOffsetInSegment = 0,
                         length = totalSize
                     )
@@ -278,7 +286,7 @@ abstract class BaseQueueMusicRepository<
             val allSegments = dao.getSegments()
             val allRefs = dao.getRefs()
             val queueWasEmpty = allRefs.isEmpty()
-            val loadedSongs = dao.getSongsBySegmentId(queueSegment.id)
+            val loadedSongs = dao.getSongsBySegmentId(queueSegment.id, queueSegment.type)
             val currentSegmentRefs = allRefs.filter { it.segmentId == queueSegment.id }
             val withoutSameSegment =
                 removeExistingQueuePositionsBySegmentId(allRefs, queueSegment.id)
@@ -286,6 +294,7 @@ abstract class BaseQueueMusicRepository<
                 listOf(
                     createQueueRef(
                         segmentId = queueSegment.id,
+                        segmentType = queueSegment.type,
                         startOffsetInSegment = 0,
                         length = queueSegment.logicalLength()
                     )
@@ -332,6 +341,7 @@ abstract class BaseQueueMusicRepository<
                 createQueuePositionMapper(allSegments, deduplicatedRefs.refs).totalSize
             val newAllRefs = deduplicatedRefs.refs + createQueueRef(
                 segmentId = segment.id,
+                segmentType = segment.type,
                 startOffsetInSegment = 0,
                 length = 1
             )
@@ -342,6 +352,7 @@ abstract class BaseQueueMusicRepository<
                 songs = listOf(singleQueueSong),
                 page = createSegmentPageEntity(
                     segmentId = segment.id, // 这里取的是song的id
+                    segmentType = segment.type,
                     page = 1,
                     isCached = true,
                     cachedCount = 1,
@@ -370,7 +381,7 @@ abstract class BaseQueueMusicRepository<
             val allSegments = dao.getSegments()
             val allRefs = dao.getRefs()
             val queueWasEmpty = allRefs.isEmpty()
-            val loadedSongs = dao.getSongsBySegmentId(queueSegment.id)
+            val loadedSongs = dao.getSongsBySegmentId(queueSegment.id, queueSegment.type)
             val currentSegmentRefs = allRefs.filter { it.segmentId == queueSegment.id }
             val withoutSameSegment =
                 removeExistingQueuePositionsBySegmentId(allRefs, queueSegment.id)
@@ -391,6 +402,7 @@ abstract class BaseQueueMusicRepository<
                 listOf(
                     createQueueRef(
                         segmentId = queueSegment.id,
+                        segmentType = queueSegment.type,
                         startOffsetInSegment = 0,
                         length = queueSegment.logicalLength()
                     )
@@ -458,6 +470,7 @@ abstract class BaseQueueMusicRepository<
             }
             val insertedRef = createQueueRef(
                 segmentId = segment.id,
+                segmentType = segment.type,
                 startOffsetInSegment = 0,
                 length = 1
             )
@@ -473,6 +486,7 @@ abstract class BaseQueueMusicRepository<
                 songs = listOf(singleQueueSong),
                 page = createSegmentPageEntity(
                     segmentId = segment.id, // 这里取的是song的id
+                    segmentType = segment.type,
                     page = 1,
                     isCached = true,
                     cachedCount = 1,
@@ -524,6 +538,7 @@ abstract class BaseQueueMusicRepository<
                     if (beforeLength > 0) {
                         nextRefs += createQueueRef(
                             segmentId = ref.segmentId,
+                            segmentType = ref.segmentType,
                             startOffsetInSegment = ref.startOffsetInSegment,
                             length = beforeLength
                         )
@@ -532,6 +547,7 @@ abstract class BaseQueueMusicRepository<
                     if (afterLength > 0) {
                         nextRefs += createQueueRef(
                             segmentId = ref.segmentId,
+                            segmentType = ref.segmentType,
                             startOffsetInSegment = ref.startOffsetInSegment + beforeLength,
                             length = afterLength
                         )
@@ -627,6 +643,7 @@ abstract class BaseQueueMusicRepository<
             .filter { song ->
                 PositionKey(
                     segmentId = song.segmentId,
+                    segmentType = song.segmentType,
                     sortOrderInSegment = song.sortOrderInSegment
                 ) !in positionsToKeep
             }
@@ -659,6 +676,7 @@ abstract class BaseQueueMusicRepository<
                 .filter { offset ->
                     PositionKey(
                         segmentId = ref.segmentId,
+                        segmentType = ref.segmentType,
                         sortOrderInSegment = offset
                     ) !in positionsToKeep
                 }
@@ -739,10 +757,11 @@ abstract class BaseQueueMusicRepository<
         var nextStart = ref.startOffsetInSegment
 
         offsetsToRemove.distinct().sorted().forEach { offset ->
-            if (offset < nextStart || offset >= refEndExclusive) return@forEach
+            if (offset !in nextStart..<refEndExclusive) return@forEach
             if (nextStart < offset) {
                 nextRefs += createQueueRef(
                     segmentId = ref.segmentId,
+                    segmentType = ref.segmentType,
                     startOffsetInSegment = nextStart,
                     length = offset - nextStart
                 )
@@ -753,6 +772,7 @@ abstract class BaseQueueMusicRepository<
         if (nextStart < refEndExclusive) {
             nextRefs += createQueueRef(
                 segmentId = ref.segmentId,
+                segmentType = ref.segmentType,
                 startOffsetInSegment = nextStart,
                 length = refEndExclusive - nextStart
             )
@@ -799,6 +819,7 @@ abstract class BaseQueueMusicRepository<
     private fun S.positionKey(): PositionKey {
         return PositionKey(
             segmentId = segmentId,
+            segmentType = segmentType,
             sortOrderInSegment = sortOrderInSegment
         )
     }
@@ -842,7 +863,7 @@ abstract class BaseQueueMusicRepository<
     }
 
     private suspend fun upsertSegmentForQueueAction(segment: SEG): SEG {
-        val existingSegment = dao.getSegment(segment.id)
+        val existingSegment = dao.getSegment(segment.id, segment.type)
         val queueSegment = existingSegment?.copyTo(
             name = segment.name,
             coverUrl = segment.coverUrl ?: existingSegment.coverUrl,
@@ -903,7 +924,7 @@ abstract class BaseQueueMusicRepository<
         val segmentsById = dao.getSegments().associateBy { it.id }
         refsBySegment.forEach { (segmentId, segmentRefs) ->
             val segment = segmentsById[segmentId] ?: return@forEach
-            val loadedCount = dao.getSongsBySegmentId(segmentId)
+            val loadedCount = dao.getSongsBySegmentId(segment.id, segment.type)
                 .asSequence()
                 .map { it.sortOrderInSegment }
                 .distinct()
@@ -942,7 +963,7 @@ abstract class BaseQueueMusicRepository<
 //        return FractionalIndexing.generateFractionalIndexBetween(curSortIndex, dao.getSegmentNextSortIndex(curSortIndex))
 //    }
 
-    suspend fun removeQueueSegment(segmentId: String): QueueRemovalResult {
+    suspend fun removeQueueSegment(segmentId: String, segmentType: String): QueueRemovalResult {
         return queueMutex.withLock {
             val refs = dao.getRefs()
             val removedRanges = mutableListOf<RemovedGlobalRange>()
@@ -959,7 +980,7 @@ abstract class BaseQueueMusicRepository<
                 cursor = endExclusive
             }
 
-            dao.removeQueueSegment(segmentId)
+            dao.removeQueueSegment(segmentId, segmentType)
 
             if (removedRanges.isEmpty()) {
                 QueueRemovalResult.none(segmentId)
@@ -987,7 +1008,7 @@ abstract class BaseQueueMusicRepository<
         val pageKeys = mapper.rangesFor(window)
             .flatMap { range ->
                 (range.firstPage..range.lastPage).map { page ->
-                    PageKey(segmentId = range.segment.id, page = page)
+                    PageKey(segmentId = range.segment.id, segmentType = range.segment.type, page = page)
                 }
             }
             .distinct()
@@ -1137,6 +1158,7 @@ abstract class BaseQueueMusicRepository<
             forceRetry = forceRetry,
             preferredPositionKey = PositionKey(
                 segmentId = initialLocation.segment.id,
+                segmentType = initialLocation.segment.type,
                 sortOrderInSegment = initialLocation.offsetInSegment
             )
         )
@@ -1145,6 +1167,7 @@ abstract class BaseQueueMusicRepository<
         val location = refreshedMapper.locate(globalPosition) ?: return null
         val song = dao.getSongAtPosition(
             segmentId = location.segment.id,
+            segmentType = location.segment.type,
             sortOrderInSegment = location.offsetInSegment
         ) ?: return null
 
@@ -1187,7 +1210,7 @@ abstract class BaseQueueMusicRepository<
     ) {
         val key = PageKey(segmentId = segmentId, segmentType = segmentType, page = page)
         loadMutex.withLock {
-            val existing = dao.getPage(segmentId, page)
+            val existing = dao.getPage(segmentId, segmentType, page)
             if (key in loadingPageKeys.value) return
             if (existing?.isCached == true) return
             if (existing?.error != null && !forceRetry) return
@@ -1198,7 +1221,7 @@ abstract class BaseQueueMusicRepository<
             val segment = dao.getSegments().firstOrNull { it.id == segmentId } ?: return
             val pageResult = api.fetchSongs(segmentId, segmentType, page, segment.pageSize)
             val songs = pageResult.songs.map { song ->
-                song.toQueueSongEntity(segmentId)
+                song.toQueueSongEntity(segmentId, segmentType)
             }
             val preferredProtectedSong = preferredPositionKey?.let { key ->
                 songs.firstOrNull { song -> song.positionKey() == key }?.let { song ->
@@ -1237,6 +1260,7 @@ abstract class BaseQueueMusicRepository<
                 // 标记这一页已经缓存成功。
                 page = createSegmentPageEntity(
                     segmentId = segmentId,
+                    segmentType = segmentType,
                     page = page,
                     isCached = true,
                     cachedCount = pageCachedCount,
@@ -1254,6 +1278,7 @@ abstract class BaseQueueMusicRepository<
             dao.upsertPage(
                 createSegmentPageEntity(
                     segmentId = segmentId,
+                    segmentType = segmentType,
                     page = page,
                     isCached = false,
                     cachedCount = 0,
@@ -1274,6 +1299,7 @@ abstract class BaseQueueMusicRepository<
 
     protected abstract fun createQueueRef(
         segmentId: String,
+        segmentType: String,
         startOffsetInSegment: Int,
         length: Int
     ): SEG_REF
@@ -1296,6 +1322,7 @@ abstract class BaseQueueMusicRepository<
 
     protected abstract fun createSegmentPageEntity(
         segmentId: String,
+        segmentType: String,
         page: Int,
         isCached: Boolean,
         cachedCount: Int,
@@ -1311,7 +1338,7 @@ abstract class BaseQueueMusicRepository<
         lastError: String? = this.lastError
     ): SEG
 
-    protected abstract fun NET_S.toQueueSongEntity(segmentId: String): S
+    protected abstract fun NET_S.toQueueSongEntity(segmentId: String, segmentType: String): S
 
     protected abstract fun S.copyTo(
         id: String = this.id,

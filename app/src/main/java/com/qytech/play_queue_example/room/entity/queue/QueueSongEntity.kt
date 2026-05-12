@@ -13,6 +13,7 @@ import com.qytech.play_queue_example.model.QueueSong
 data class QueueSongEntity(
     override val id: String,
     override val segmentId: String,
+    override val segmentType: String,
     override val name: String,
     override val coverUrl: String?,
     override val singerName: String,
@@ -30,6 +31,7 @@ fun QueueSongEntity.toUiModel(
     globalPosition = globalPosition,
     songId = id,
     segmentId = segmentId,
+    segmentType = segmentType,
     segmentName = playlist.name,
     name = name,
     singerName = singerName,

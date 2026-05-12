@@ -11,6 +11,7 @@ import com.qytech.play_queue.local.IQueueSegmentPageEntity
 )
 data class QueueSegmentPageEntity(
     override val segmentId: String,
+    override val segmentType: String,
     override val page: Int,
     override val isCached: Boolean,
     override val cachedCount: Int,

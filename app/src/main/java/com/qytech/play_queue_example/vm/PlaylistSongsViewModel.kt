@@ -106,6 +106,7 @@ class PlaylistSongsViewModel @Inject constructor(
             val queueSong = QueueSongEntity(
                 id = song.id.toString(),
                 segmentId = song.id.toString(),
+                segmentType = "single_song",
                 name = song.title,
                 coverUrl = null,
                 singerName = song.artist,

@@ -45,6 +45,7 @@ class PlayQueueRepository @Inject constructor(
 
     override fun createSegmentPageEntity(
         segmentId: String,
+        segmentType: String,
         page: Int,
         isCached: Boolean,
         cachedCount: Int,
@@ -52,6 +53,7 @@ class PlayQueueRepository @Inject constructor(
     ): QueueSegmentPageEntity {
         return QueueSegmentPageEntity(
             segmentId = segmentId,
+            segmentType = segmentType,
             page = page,
             isCached = isCached,
             cachedCount = cachedCount,
@@ -77,9 +79,10 @@ class PlayQueueRepository @Inject constructor(
         )
     }
 
-    override fun NetworkSong.toQueueSongEntity(segmentId: String): QueueSongEntity {
+    override fun NetworkSong.toQueueSongEntity(segmentId: String, segmentType: String): QueueSongEntity {
         return QueueSongEntity(
             segmentId = segmentId,
+            segmentType = segmentType,
             id = id,
             name = name,
             singerName = singerName,
@@ -210,11 +213,13 @@ class PlayQueueRepository @Inject constructor(
 
     override fun createQueueRef(
         segmentId: String,
+        segmentType: String,
         startOffsetInSegment: Int,
         length: Int
     ): QueueSegmentRef {
         return QueueSegmentRef(
             segmentId = segmentId,
+            segmentType = segmentType,
             startOffsetInSegment = startOffsetInSegment,
             length = length
         )

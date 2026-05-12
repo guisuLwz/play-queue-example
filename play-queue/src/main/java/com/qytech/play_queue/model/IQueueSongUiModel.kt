@@ -8,6 +8,7 @@ interface IQueueSongUiModel {
     val globalPosition: Int
     val songId: String
     val segmentId: String
+    val segmentType: String
     val segmentName: String
     val name: String
     val singerName: String

@@ -27,7 +27,7 @@ fun QueueSegmentEntity.toLoadState(
 ): QueueSegmentLoadState {
     val expectedPageCount = expectedPageCount()
     val expectedPages = expectedPageCount?.let { count ->
-        (1..count).map { page -> pagesByKey[PageKey(segmentId = id, page = page)] }
+        (1..count).map { page -> pagesByKey[PageKey(segmentId = id, segmentType = type, page = page)] }
     }.orEmpty()
     val hasPageError = expectedPages.any { page -> page?.error != null }
     val isFullyCached = expectedPageCount != null &&

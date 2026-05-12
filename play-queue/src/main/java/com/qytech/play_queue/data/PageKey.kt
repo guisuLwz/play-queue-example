@@ -5,6 +5,6 @@ package com.qytech.play_queue.data
  */
 data class PageKey(
     val segmentId: String,
-    val segmentType: String = "",
+    val segmentType: String,
     val page: Int
 )

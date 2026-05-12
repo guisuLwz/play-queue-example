@@ -38,13 +38,13 @@ interface BasePlayQueueDao<
      */
     suspend fun getSegments(): List<SEG>
 
-    suspend fun getSegment(segmentId: String): SEG?
+    suspend fun getSegment(segmentId: String, segmentType: String): SEG?
 
     suspend fun getSegmentLastSortIndex(): String?
 
     suspend fun getSegmentFirstSortIndex(): String?
 
-    suspend fun getSegmentSortIndex(segmentId: String): String?
+    suspend fun getSegmentSortIndex(segmentId: String, segmentType: String): String?
 
     suspend fun getSegmentPreviousSortIndex(curSortIndex: String): String?
 
@@ -54,25 +54,25 @@ interface BasePlayQueueDao<
      * 一次性读取某个歌单某一页的状态，用于判断是否需要请求网络。
      * 例如：'@'Query("SELECT * FROM segment_pages WHERE segmentId = :segmentId AND page = :page LIMIT 1")
      */
-    suspend fun getPage(segmentId: String, page: Int): SEG_PAGE?
+    suspend fun getPage(segmentId: String, segmentType: String, page: Int): SEG_PAGE?
 
-    suspend fun getSongAtPosition(segmentId: String, sortOrderInSegment: Int): S?
+    suspend fun getSongAtPosition(segmentId: String, segmentType: String, sortOrderInSegment: Int): S?
 
     suspend fun getSongsById(songId: String): List<S>
 
     suspend fun getSongsByIds(songIds: List<String>): List<S>
 
-    suspend fun getSongsBySegmentId(segmentId: String): List<S>
+    suspend fun getSongsBySegmentId(segmentId: String, segmentType: String): List<S>
 
     suspend fun getRefs(): List<SEG_REF>
 
-    suspend fun getRefsBySegmentId(segmentId: String): List<SEG_REF>
+    suspend fun getRefsBySegmentId(segmentId: String, segmentType: String): List<SEG_REF>
 
     /**
      * 统计某个歌单当前已经缓存了多少首歌，用来更新 PlaylistEntity.loadedCount。
      * 例如：'@'Query("SELECT COUNT(*) FROM songs WHERE segmentId = :segmentId")
      */
-    suspend fun countCachedSongs(segmentId: String): Int
+    suspend fun countCachedSongs(segmentId: String, segmentType: String): Int
 
     /**
      * 批量插入或更新歌单。
@@ -119,13 +119,15 @@ interface BasePlayQueueDao<
 
     suspend fun refreshRefs(refs: List<SEG_REF>)
 
-    suspend fun deleteSegmentById(segmentId: String)
+    suspend fun deleteSegmentById(segmentId: String, segmentType: String)
 
-    suspend fun deleteSongsBySegmentId(segmentId: String)
+    suspend fun deleteSongsBySegmentId(segmentId: String, segmentType: String)
 
-    suspend fun deleteSegmentPageBySegmentId(segmentId: String)
+    suspend fun deleteSegmentPageBySegmentId(segmentId: String, segmentType: String)
 
-    suspend fun removeQueueSegment(segmentId: String)
+    suspend fun deleteSegmentRefBySegmentId(segmentId: String, segmentType: String)
+
+    suspend fun removeQueueSegment(segmentId: String, segmentType: String)
 
     suspend fun clearSegments()
 

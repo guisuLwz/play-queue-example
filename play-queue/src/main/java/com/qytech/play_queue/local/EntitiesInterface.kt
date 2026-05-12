@@ -24,6 +24,7 @@ interface IQueueSegmentEntity {
 interface IQueueSongEntity {
     val id: String
     val segmentId: String
+    val segmentType: String
     val name: String
     val coverUrl: String?
     val singerName: String
@@ -42,6 +43,8 @@ interface IQueueSongEntity {
  */
 interface IQueueSegmentPageEntity {
     val segmentId: String
+
+    val segmentType: String
 
     /**
      * 当前片段的第几页，从 1 开始
@@ -67,6 +70,7 @@ interface IQueueSegmentPageEntity {
 interface IQueueSegmentRefEntity {
     val id: Long
     val segmentId: String
+    val segmentType: String
     val startOffsetInSegment: Int
     val length: Int
     val sortIndex: String

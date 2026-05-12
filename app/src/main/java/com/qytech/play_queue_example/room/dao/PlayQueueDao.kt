@@ -50,11 +50,11 @@ interface PlayQueueDao : BasePlayQueueDao<
     @Query("SELECT * FROM queue_segments ORDER BY id")
     override suspend fun getSegments(): List<QueueSegmentEntity>
 
-    @Query("SELECT * FROM queue_segments WHERE id = :segmentId")
-    override suspend fun getSegment(segmentId: String): QueueSegmentEntity?
+    @Query("SELECT * FROM queue_segments WHERE id = :segmentId AND type = :segmentType")
+    override suspend fun getSegment(segmentId: String, segmentType: String): QueueSegmentEntity?
 
-    @Query("SELECT sortIndex FROM queue_segments WHERE id = :segmentId")
-    override suspend fun getSegmentSortIndex(segmentId: String): String?
+    @Query("SELECT sortIndex FROM queue_segments WHERE id = :segmentId AND type = :segmentType")
+    override suspend fun getSegmentSortIndex(segmentId: String, segmentType: String): String?
 
     @Query("SELECT sortIndex FROM queue_segments WHERE sortIndex < :curSortIndex ORDER BY sortIndex DESC LIMIT 1")
     override suspend fun getSegmentPreviousSortIndex(curSortIndex: String): String?
@@ -68,12 +68,17 @@ interface PlayQueueDao : BasePlayQueueDao<
     @Query("SELECT sortIndex FROM queue_segments ORDER BY sortIndex DESC LIMIT 1")
     override suspend fun getSegmentLastSortIndex(): String?
 
-    @Query("SELECT * FROM queue_segment_pages WHERE segmentId = :segmentId AND page = :page LIMIT 1")
-    override suspend fun getPage(segmentId: String, page: Int): QueueSegmentPageEntity?
+    @Query("SELECT * FROM queue_segment_pages WHERE segmentId = :segmentId AND segmentType = :segmentType AND page = :page LIMIT 1")
+    override suspend fun getPage(
+        segmentId: String,
+        segmentType: String,
+        page: Int
+    ): QueueSegmentPageEntity?
 
-    @Query("SELECT * FROM queue_songs WHERE segmentId = :segmentId AND sortOrderInSegment = :sortOrderInSegment LIMIT 1")
+    @Query("SELECT * FROM queue_songs WHERE segmentId = :segmentId AND segmentType = :segmentType AND sortOrderInSegment = :sortOrderInSegment LIMIT 1")
     override suspend fun getSongAtPosition(
         segmentId: String,
+        segmentType: String,
         sortOrderInSegment: Int
     ): QueueSongEntity?
 
@@ -83,24 +88,31 @@ interface PlayQueueDao : BasePlayQueueDao<
     @Query("SELECT * FROM queue_songs WHERE id IN (:songIds)")
     override suspend fun getSongsByIds(songIds: List<String>): List<QueueSongEntity>
 
-    @Query("SELECT * FROM queue_songs WHERE segmentId = :segmentId")
-    override suspend fun getSongsBySegmentId(segmentId: String): List<QueueSongEntity>
+    @Query("SELECT * FROM queue_songs WHERE segmentId = :segmentId AND segmentType = :segmentType")
+    override suspend fun getSongsBySegmentId(
+        segmentId: String,
+        segmentType: String
+    ): List<QueueSongEntity>
 
     @Query("SELECT * FROM queue_segment_refs ORDER BY sortIndex ASC")
     override suspend fun getRefs(): List<QueueSegmentRef>
 
-    @Query("SELECT * FROM queue_segment_refs WHERE segmentId = :segmentId ORDER BY sortIndex ASC")
-    override suspend fun getRefsBySegmentId(segmentId: String): List<QueueSegmentRef>
+    @Query("SELECT * FROM queue_segment_refs WHERE segmentId = :segmentId AND segmentType = :segmentType ORDER BY sortIndex ASC")
+    override suspend fun getRefsBySegmentId(
+        segmentId: String,
+        segmentType: String
+    ): List<QueueSegmentRef>
 
     @Query(
         """
         SELECT COALESCE(SUM(cachedCount), 0)
         FROM queue_segment_pages
-        WHERE segmentId = :segmentId
+        WHERE segmentId = :segmentId 
+            AND segmentType = :segmentType
             AND isCached = 1
         """
     )
-    override suspend fun countCachedSongs(segmentId: String): Int
+    override suspend fun countCachedSongs(segmentId: String, segmentType: String): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     override suspend fun upsertSegments(segments: List<QueueSegmentEntity>)
@@ -153,24 +165,24 @@ interface PlayQueueDao : BasePlayQueueDao<
         upsertRefs(refs)
     }
 
-    @Query("DELETE FROM queue_segments WHERE id = :segmentId")
-    override suspend fun deleteSegmentById(segmentId: String)
+    @Query("DELETE FROM queue_segments WHERE id = :segmentId AND type = :segmentType")
+    override suspend fun deleteSegmentById(segmentId: String, segmentType: String)
 
-    @Query("DELETE FROM queue_songs WHERE segmentId = :segmentId")
-    override suspend fun deleteSongsBySegmentId(segmentId: String)
+    @Query("DELETE FROM queue_songs WHERE segmentId = :segmentId AND segmentType = :segmentType")
+    override suspend fun deleteSongsBySegmentId(segmentId: String, segmentType: String)
 
-    @Query("DELETE FROM queue_segment_pages WHERE segmentId = :segmentId")
-    override suspend fun deleteSegmentPageBySegmentId(segmentId: String)
+    @Query("DELETE FROM queue_segment_pages WHERE segmentId = :segmentId AND segmentType = :segmentType")
+    override suspend fun deleteSegmentPageBySegmentId(segmentId: String, segmentType: String)
 
-    @Query("DELETE FROM queue_segment_refs WHERE segmentId = :segmentId")
-    suspend fun deleteSegmentRefBySegmentId(segmentId: String)
+    @Query("DELETE FROM queue_segment_refs WHERE segmentId = :segmentId AND segmentType = :segmentType")
+    override suspend fun deleteSegmentRefBySegmentId(segmentId: String, segmentType: String)
 
     @Transaction
-    override suspend fun removeQueueSegment(segmentId: String) {
-        deleteSongsBySegmentId(segmentId)
-        deleteSegmentPageBySegmentId(segmentId)
-        deleteSegmentRefBySegmentId(segmentId)
-        deleteSegmentById(segmentId)
+    override suspend fun removeQueueSegment(segmentId: String, segmentType: String) {
+        deleteSongsBySegmentId(segmentId, segmentType)
+        deleteSegmentPageBySegmentId(segmentId, segmentType)
+        deleteSegmentRefBySegmentId(segmentId, segmentType)
+        deleteSegmentById(segmentId, segmentType)
     }
 
     @Query("DELETE FROM queue_segments")
