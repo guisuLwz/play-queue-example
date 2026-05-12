@@ -139,9 +139,9 @@ class PlayQueueViewModel @Inject constructor(
         val located = locate(globalPosition) ?: return null
         val segment = located.segment
         val page = located.page
-        val pageKey = PageKey(segment.id, "", page)
+        val pageKey = PageKey(segment.id, segment.type, page)
         val pageState = pagesByKey[pageKey]
-        val song = songsByPositionKey[PositionKey(segment.id, "", located.offsetInSegment)]
+        val song = songsByPositionKey[PositionKey(segment.id, segment.type, located.offsetInSegment)]
 
         if (song != null) {
             return QueueRow.SongRow(
